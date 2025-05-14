@@ -32,9 +32,14 @@ class _HomeScreenState extends State<HomeScreen> {
     final user = await UserStorage.getUser();
     setState(() {
       _user = user;
-      _isActive = user?['geotag'] != null && user?['geotag'] != '-';
       _selectedLocation = user?['geotag'] ?? '-';
       _notesController.text = user?['notes'] ?? '-';
+      if (user?['lat'] != null && user?['long'] != null) {
+        _currentLatLng = LatLng(user!['lat'], user['long']);
+        _isActive = true;
+      } else {
+        _isActive = false;
+      }
     });
   }
 
@@ -56,6 +61,8 @@ class _HomeScreenState extends State<HomeScreen> {
         final long = result['long'];
 
         updatedUser['geotag'] = locationList[0];
+        updatedUser['lat'] = lat;
+        updatedUser['long'] = long;
         updatedUser['status'] = 0;
         updatedUser['notes'] = '-';
 
@@ -66,14 +73,19 @@ class _HomeScreenState extends State<HomeScreen> {
         updatedUser['geotag'] = '-';
         updatedUser['status'] = 0;
         updatedUser['notes'] = '-';
+        updatedUser.remove('lat');
+        updatedUser.remove('long');
         _locationOptions = [];
         _selectedLocation = null;
         _currentLatLng = null;
+        _isActive = false; // pastikan state mati jika gagal ambil lokasi
       }
     } else {
       updatedUser['geotag'] = '-';
       updatedUser['status'] = 0;
       updatedUser['notes'] = '-';
+      updatedUser.remove('lat');
+      updatedUser.remove('long');
       _locationOptions = [];
       _selectedLocation = null;
       _currentLatLng = null;
@@ -134,8 +146,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         children: [
           TileLayer(
-            urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-            subdomains: const ['a', 'b', 'c'],
+            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           ),
           MarkerLayer(
             markers: [
@@ -149,6 +160,55 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _infoTile(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 20, color: Colors.purple),
+          const SizedBox(width: 10),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: const TextStyle(fontSize: 14, color: Colors.black),
+                children: [
+                  TextSpan(text: '$label: ', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  TextSpan(text: value),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _switchTile({
+    required IconData icon,
+    required String title,
+    required bool value,
+    required Function(bool)? onChanged,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            Icon(icon, color: Colors.blue),
+            const SizedBox(width: 8),
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+          ],
+        ),
+        Switch(
+          value: value,
+          onChanged: onChanged,
+          activeColor: Colors.blue,
+        ),
+      ],
     );
   }
 
@@ -226,7 +286,6 @@ class _HomeScreenState extends State<HomeScreen> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                               : Builder(builder: (_) {
-                            // Perbaikan: Pastikan nilai selected valid
                             if (!_locationOptions.contains(_selectedLocation)) {
                               _selectedLocation = _locationOptions.isNotEmpty
                                   ? _locationOptions.first
@@ -274,55 +333,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _infoTile(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 20, color: Colors.purple),
-          const SizedBox(width: 10),
-          Expanded(
-            child: RichText(
-              text: TextSpan(
-                style: const TextStyle(fontSize: 14, color: Colors.black),
-                children: [
-                  TextSpan(text: '$label: ', style: const TextStyle(fontWeight: FontWeight.bold)),
-                  TextSpan(text: value),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _switchTile({
-    required IconData icon,
-    required String title,
-    required bool value,
-    required Function(bool)? onChanged,
-  }) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Row(
-          children: [
-            Icon(icon, color: Colors.blue),
-            const SizedBox(width: 8),
-            Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-          ],
-        ),
-        Switch(
-          value: value,
-          onChanged: onChanged,
-          activeColor: Colors.blue,
-        ),
-      ],
     );
   }
 }
