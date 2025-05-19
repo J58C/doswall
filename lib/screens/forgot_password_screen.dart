@@ -20,7 +20,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     setState(() => _loading = true);
 
     final res = await http.post(
-      Uri.parse('https://sigmaskibidi.my.id/appkey/password/mailpw'),
+      Uri.parse('https://doegus.sigmaskibidi.my.id/appkey/password/mailpw'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
         'email': _emailController.text.trim(),

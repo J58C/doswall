@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'user_storage.dart';
 
 class GeotagService {
-  static const String _apiUrl = 'https://sigmaskibidi.my.id/api/clients/getlocationlists';
+  static const String _apiUrl = 'https://doegus.sigmaskibidi.my.id/api/clients/getlocationlists';
   static const String _appKey = 'DOEGUSAPPACCESSCORS';
 
   static Future<Map<String, dynamic>> sendLocationAndGetName() async {

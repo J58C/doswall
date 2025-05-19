@@ -32,10 +32,10 @@ class _HomeScreenState extends State<HomeScreen> {
     final user = await UserStorage.getUser();
     setState(() {
       _user = user;
-      _selectedLocation = user?['geotag'] ?? '-';
-      _notesController.text = user?['notes'] ?? '-';
-      if (user?['lat'] != null && user?['long'] != null) {
-        _currentLatLng = LatLng(user!['lat'], user['long']);
+      _selectedLocation = user['geotag'] ?? '-';
+      _notesController.text = user['notes'] ?? '-';
+      if (user['lat'] != null && user['long'] != null) {
+        _currentLatLng = LatLng(user['lat'], user['long']);
         _isActive = true;
       } else {
         _isActive = false;
