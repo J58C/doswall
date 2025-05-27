@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/forgot_password_screen.dart';
+import 'screens/announcements_screen.dart';
 import 'services/user_storage.dart';
 
 void main() async {
@@ -28,6 +29,7 @@ class MyApp extends StatelessWidget {
         '/login': (_) => LoginScreen(),
         '/home': (_) => HomeScreen(),
         '/forgot': (_) => ForgotPasswordScreen(),
+        '/announcements': (_) => AnnouncementsScreen(),
       },
     );
   }

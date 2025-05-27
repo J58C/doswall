@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class AuthService {
-  static const String _loginUrl = 'https://doegus.sigmaskibidi.my.id/appkey/login';
+  static const String _loginUrl = 'https://sigmaskibidi.my.id/appkey/login';
   static const String _appKey = 'DOEGUSAPPACCESSCORS';
 
   static Future<Map<String, dynamic>> login(String email, String password) async {

@@ -3,6 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../services/user_storage.dart';
 import '../services/geotag_service.dart';
+import '../services/update_profile_service.dart';
 import 'login_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -30,6 +31,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadUser() async {
     final user = await UserStorage.getUser();
+    if (!mounted) return;
     setState(() {
       _user = user;
       _selectedLocation = user['geotag'] ?? '-';
@@ -45,54 +47,67 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _toggleActive(bool value) async {
     if (_user == null) return;
-
-    setState(() {
-      _isActive = value;
-      _loadingGeotag = value;
-    });
-
+    setState(() => _loadingGeotag = true);
     final updatedUser = Map<String, dynamic>.from(_user!);
 
     if (value) {
       final result = await GeotagService.sendLocationAndGetName();
+      if (!mounted) return;
+
       if (result['success']) {
         final locationList = List<String>.from(result['locationLists']);
         final lat = result['lat'];
         final long = result['long'];
 
-        updatedUser['geotag'] = locationList[0];
-        updatedUser['lat'] = lat;
-        updatedUser['long'] = long;
-        updatedUser['status'] = 0;
-        updatedUser['notes'] = '-';
+        updatedUser
+          ..['geotag'] = locationList[0]
+          ..['lat'] = lat
+          ..['long'] = long
+          ..['status'] = 0
+          ..['notes'] = '-';
 
-        _locationOptions = locationList;
-        _selectedLocation = locationList[0];
-        _currentLatLng = LatLng(lat, long);
+        setState(() {
+          _locationOptions = locationList;
+          _selectedLocation = locationList[0];
+          _currentLatLng = LatLng(lat, long);
+          _isActive = true;
+        });
       } else {
-        updatedUser['geotag'] = '-';
-        updatedUser['status'] = 0;
-        updatedUser['notes'] = '-';
-        updatedUser.remove('lat');
-        updatedUser.remove('long');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('❌ Gagal mendapatkan lokasi: ${result['message'] ?? 'Unknown error'}')),
+        );
+        updatedUser
+          ..['geotag'] = '-'
+          ..['status'] = 0
+          ..['notes'] = '-'
+          ..remove('lat')
+          ..remove('long');
+
+        setState(() {
+          _locationOptions = [];
+          _selectedLocation = null;
+          _currentLatLng = null;
+          _isActive = false;
+        });
+      }
+    } else {
+      updatedUser
+        ..['geotag'] = '-'
+        ..['status'] = 0
+        ..['notes'] = '-'
+        ..remove('lat')
+        ..remove('long');
+
+      setState(() {
         _locationOptions = [];
         _selectedLocation = null;
         _currentLatLng = null;
-        _isActive = false; // pastikan state mati jika gagal ambil lokasi
-      }
-    } else {
-      updatedUser['geotag'] = '-';
-      updatedUser['status'] = 0;
-      updatedUser['notes'] = '-';
-      updatedUser.remove('lat');
-      updatedUser.remove('long');
-      _locationOptions = [];
-      _selectedLocation = null;
-      _currentLatLng = null;
+        _isActive = false;
+      });
     }
 
     await UserStorage.saveUser(updatedUser);
-
+    if (!mounted) return;
     setState(() {
       _user = updatedUser;
       _loadingGeotag = false;
@@ -101,12 +116,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _updateStatus(bool value) async {
     if (_user == null) return;
-
     setState(() => _updatingStatus = true);
+
     final updatedUser = Map<String, dynamic>.from(_user!);
     updatedUser['status'] = value ? 1 : 0;
     await UserStorage.saveUser(updatedUser);
 
+    if (!mounted) return;
     setState(() {
       _user = updatedUser;
       _updatingStatus = false;
@@ -124,211 +140,171 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _saveData() async {
     if (_user == null) return;
-    final updatedUser = Map<String, dynamic>.from(_user!);
-    updatedUser['notes'] = _notesController.text;
-    updatedUser['geotag'] = _selectedLocation ?? '-';
+
+    final updatedUser = Map<String, dynamic>.from(_user!)
+      ..['notes'] = _notesController.text
+      ..['geotag'] = _selectedLocation ?? '-';
+
     await UserStorage.saveUser(updatedUser);
+    if (!mounted) return;
     setState(() => _user = updatedUser);
-  }
 
-  Widget _buildMap() {
-    if (_currentLatLng == null) return const SizedBox(height: 200);
-
-    return SizedBox(
-      height: 200,
-      child: FlutterMap(
-        options: MapOptions(
-          initialCenter: _currentLatLng!,
-          initialZoom: 17,
-          interactionOptions: const InteractionOptions(
-            flags: InteractiveFlag.none,
-          ),
-        ),
-        children: [
-          TileLayer(
-            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          ),
-          MarkerLayer(
-            markers: [
-              Marker(
-                point: _currentLatLng!,
-                width: 80,
-                height: 80,
-                child: const Icon(Icons.location_pin, color: Colors.red, size: 40),
-              ),
-            ],
-          ),
-        ],
+    final result = await UpdateProfileService.sendUpdateProfile();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(result['success']
+            ? '✅ Berhasil memperbarui profil ke server.'
+            : '❌ Gagal: ${result['message']}'),
       ),
     );
   }
 
-  Widget _infoTile(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 20, color: Colors.purple),
-          const SizedBox(width: 10),
-          Expanded(
-            child: RichText(
-              text: TextSpan(
-                style: const TextStyle(fontSize: 14, color: Colors.black),
-                children: [
-                  TextSpan(text: '$label: ', style: const TextStyle(fontWeight: FontWeight.bold)),
-                  TextSpan(text: value),
-                ],
-              ),
-            ),
+  Widget _buildMapCard() {
+    if (_currentLatLng == null) return const SizedBox.shrink();
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: SizedBox(
+        height: 180,
+        child: FlutterMap(
+          options: MapOptions(
+            initialCenter: _currentLatLng!,
+            initialZoom: 17,
+            interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _switchTile({
-    required IconData icon,
-    required String title,
-    required bool value,
-    required Function(bool)? onChanged,
-  }) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Row(
           children: [
-            Icon(icon, color: Colors.blue),
-            const SizedBox(width: 8),
-            Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+            TileLayer(
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            ),
+            MarkerLayer(
+              markers: [
+                Marker(
+                  point: _currentLatLng!,
+                  width: 60,
+                  height: 60,
+                  child: const Icon(Icons.location_pin, color: Colors.red, size: 36),
+                ),
+              ],
+            ),
           ],
         ),
-        Switch(
-          value: value,
-          onChanged: onChanged,
-          activeColor: Colors.blue,
-        ),
-      ],
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     if (_user == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final theme = Theme.of(context);
-
     return Scaffold(
-      backgroundColor: const Color(0xFFF9FAFB),
+      backgroundColor: const Color(0xFFF5F6FA),
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: const Text('Doswall', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Doswall'),
+        backgroundColor: Colors.white,
+        elevation: 1,
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            tooltip: "Keluar",
+            tooltip: 'Keluar',
             onPressed: _logout,
           ),
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         children: [
-          Text(
-            'Selamat datang, ${_user!['name']} 👋',
-            style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-          ),
+          Text('Halo, ${_user!['name']} 👋',
+              style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
-          Text(
-            'Akunmu telah berhasil masuk ke sistem.',
-            style: theme.textTheme.bodyMedium?.copyWith(color: Colors.grey[700]),
-          ),
-          const SizedBox(height: 24),
+          Text('Email: ${_user!['email']}', style: theme.textTheme.bodyMedium),
+          Text('Role: ${_user!['role']}', style: theme.textTheme.bodyMedium),
+          const SizedBox(height: 16),
+
           Card(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            elevation: 3,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            elevation: 1.5,
             child: Padding(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  _infoTile(Icons.email, "Email", _user!['email']),
-                  _infoTile(Icons.person, "Role", _user!['role']),
-                  const Divider(height: 30),
-                  _switchTile(
-                    icon: Icons.gps_fixed,
-                    title: "Aktifkan Geotag",
-                    value: _isActive,
-                    onChanged: _toggleActive,
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.gps_fixed, color: Colors.blueAccent),
+                    title: const Text('Geotag Aktif'),
+                    subtitle: const Text('Menentukan lokasi dan status Anda.'),
+                    trailing: Switch(
+                      value: _isActive,
+                      onChanged: _loadingGeotag ? null : _toggleActive,
+                      activeColor: Colors.blueAccent,
+                    ),
                   ),
                   if (_isActive) ...[
-                    const SizedBox(height: 12),
-                    _switchTile(
-                      icon: Icons.power_settings_new,
-                      title: "Status: ${_user!['status'] == 1 ? 'Available' : 'Unavailable'}",
-                      value: _user!['status'] == 1,
-                      onChanged: _updatingStatus ? null : _updateStatus,
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.toggle_on, color: Colors.green),
+                      title: Text('Status: ${_user!['status'] == 1 ? 'Tersedia' : 'Tidak Tersedia'}'),
+                      subtitle: const Text('Atur ketersediaan untuk menerima pengumuman.'),
+                      trailing: Switch(
+                        value: _user!['status'] == 1,
+                        onChanged: _updatingStatus ? null : _updateStatus,
+                        activeColor: Colors.green,
+                      ),
                     ),
                     const SizedBox(height: 12),
-                    _buildMap(),
+                    _buildMapCard(),
                     const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        const Icon(Icons.location_on, color: Colors.green),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _loadingGeotag
-                              ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                              : Builder(builder: (_) {
-                            if (!_locationOptions.contains(_selectedLocation)) {
-                              _selectedLocation = _locationOptions.isNotEmpty
-                                  ? _locationOptions.first
-                                  : null;
-                            }
-
-                            return DropdownButton<String>(
-                              value: _selectedLocation,
-                              isExpanded: true,
-                              items: _locationOptions.toSet().map((String value) {
-                                return DropdownMenuItem<String>(
-                                  value: value,
-                                  child: Text(value),
-                                );
-                              }).toList(),
-                              onChanged: (String? newValue) {
-                                setState(() {
-                                  _selectedLocation = newValue!;
-                                });
-                              },
-                            );
-                          }),
+                    if (_locationOptions.isNotEmpty)
+                      DropdownButtonFormField<String>(
+                        value: (_locationOptions.toSet().contains(_selectedLocation)) ? _selectedLocation : null,
+                        items: _locationOptions
+                            .toSet()
+                            .map((loc) => DropdownMenuItem<String>(
+                          value: loc,
+                          child: Text(loc),
+                        ))
+                            .toList(),
+                        onChanged: (val) => setState(() => _selectedLocation = val),
+                        decoration: const InputDecoration(
+                          labelText: 'Pilih Lokasi',
+                          border: OutlineInputBorder(),
                         ),
-                      ],
-                    ),
+                      ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: _notesController,
                       decoration: const InputDecoration(
-                        labelText: 'Catatan',
+                        labelText: 'Catatan Tambahan',
                         border: OutlineInputBorder(),
                       ),
                       maxLines: 2,
                     ),
-                    const SizedBox(height: 12),
-                    ElevatedButton.icon(
-                      onPressed: _saveData,
-                      icon: const Icon(Icons.save),
-                      label: const Text("Simpan"),
-                    ),
                   ],
                 ],
               ),
+            ),
+          ),
+
+          const SizedBox(height: 20),
+          ElevatedButton.icon(
+            onPressed: _saveData,
+            icon: const Icon(Icons.save),
+            label: const Text('Simpan Perubahan'),
+            style: ElevatedButton.styleFrom(
+              minimumSize: const Size.fromHeight(48),
+              backgroundColor: Colors.blueAccent,
+            ),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.pushNamed(context, '/announcements'),
+            icon: const Icon(Icons.announcement),
+            label: const Text('Lihat Pengumuman'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(48),
+              side: const BorderSide(color: Colors.blueAccent),
             ),
           ),
         ],
