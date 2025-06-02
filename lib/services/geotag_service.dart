@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -14,11 +16,22 @@ class GeotagService {
       if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
         permission = await Geolocator.requestPermission();
         if (permission != LocationPermission.always && permission != LocationPermission.whileInUse) {
-          return {'success': false, 'message': 'Izin lokasi ditolak'};
+          return {'success': false, 'message': 'Izin lokasi ditolak permanen atau tidak diberikan.'};
         }
       }
 
-      Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      if (permission == LocationPermission.denied) {
+        return {'success': false, 'message': 'Izin lokasi ditolak.'};
+      }
+
+      // --- MENGGUNAKAN KEMBALI desiredAccuracy ---
+      // Ini akan menimbulkan peringatan 'deprecated', tetapi seharusnya bisa berjalan
+      // ignore: deprecated_member_use_from_same_package
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+      // --- AKHIR PERUBAHAN ---
+
       final lat = position.latitude;
       final long = position.longitude;
 
@@ -42,27 +55,42 @@ class GeotagService {
         }),
       );
 
-      // Cek hasil response
       if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        if (data.isNotEmpty) {
+        final dynamic responseData = jsonDecode(response.body);
+        if (responseData is List && responseData.isNotEmpty) {
           return {
             'success': true,
-            'locationLists': data,
+            'locationLists': responseData,
             'lat': lat,
             'long': long,
           };
-        } else {
-          return {'success': false, 'message': 'Data lokasi tidak ditemukan'};
+        } else if (responseData is Map && responseData.containsKey('message')) {
+          return {'success': false, 'message': responseData['message'] ?? 'Data lokasi tidak ditemukan dari server.'};
+        }
+        else {
+          return {'success': false, 'message': 'Data lokasi tidak ditemukan atau format respons tidak sesuai.'};
         }
       } else {
-        return {
-          'success': false,
-          'message': 'Gagal mengambil data lokasi: ${response.statusCode}',
-        };
+        String errorMessage = 'Gagal mengambil data lokasi: ${response.statusCode}';
+        try {
+          final errorBody = jsonDecode(response.body);
+          if (errorBody is Map && errorBody.containsKey('message')) {
+            errorMessage = 'Gagal mengambil data lokasi: ${errorBody['message']} (Status: ${response.statusCode})';
+          }
+        } catch (e) {
+          // Biarkan errorMessage default
+        }
+        return {'success': false, 'message': errorMessage};
       }
     } catch (e) {
-      return {'success': false, 'message': 'Terjadi kesalahan: $e'};
+      debugPrint('GeotagService Error: $e');
+      String errorMessage = 'Terjadi kesalahan dalam GeotagService: $e';
+      if (e is TimeoutException) {
+        errorMessage = 'Gagal mendapatkan lokasi: Waktu habis. Periksa koneksi internet Anda.';
+      } else if (e is LocationServiceDisabledException) {
+        errorMessage = 'Layanan lokasi tidak aktif. Mohon aktifkan layanan lokasi pada perangkat Anda.';
+      }
+      return {'success': false, 'message': errorMessage};
     }
   }
 }

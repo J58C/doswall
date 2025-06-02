@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart'; // Pastikan path ini benar
-import '../services/user_storage.dart'; // Pastikan path ini benar
+import 'package:provider/provider.dart';
+import '../services/auth_service.dart';
+import '../services/user_storage.dart';
+import '../providers/theme_notifier.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -18,7 +20,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
   bool _loading = false;
   bool _obscure = true;
-
   String? _loginError;
 
   late final AnimationController _animController;
@@ -27,23 +28,16 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   @override
   void initState() {
     super.initState();
-
     _animController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 700),
     );
-
     _offsetAnimation = Tween<Offset>(
       begin: const Offset(0, 0.2),
       end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _animController,
-      curve: Curves.easeOut,
-    ));
-
-    // Logika animasi Anda tetap dipertahankan
+    ).animate(CurvedAnimation(parent: _animController, curve: Curves.easeOut));
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _animController.forward();
+      if (mounted) _animController.forward();
     });
   }
 
@@ -55,12 +49,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     super.dispose();
   }
 
-  // Logika _login() Anda tetap sama persis
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
-
     FocusScope.of(context).unfocus();
-
     setState(() {
       _loading = true;
       _loginError = null;
@@ -71,7 +62,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       _passwordController.text.trim(),
     );
 
-    // Pastikan widget masih mounted sebelum memanggil setState
     if (!mounted) return;
     setState(() => _loading = false);
 
@@ -85,7 +75,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       setState(() {
         _loginError = result['message'] as String? ?? 'Email atau password salah';
       });
-      // Re-validate untuk menampilkan error dari server pada field
       _formKey.currentState!.validate();
     }
   }
@@ -95,169 +84,169 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
+    final themeNotifier = Provider.of<ThemeNotifier>(context);
+
+    // Tentukan ikon berdasarkan mode tema saat ini
+    // Untuk ThemeMode.system, kita periksa brightness aktual dari tema
+    bool isCurrentlyDark = themeNotifier.themeMode == ThemeMode.dark ||
+        (themeNotifier.themeMode == ThemeMode.system && theme.brightness == Brightness.dark);
+    IconData themeIcon = isCurrentlyDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined;
+    String themeTooltip = isCurrentlyDark ? 'Ubah ke Mode Terang' : 'Ubah ke Mode Gelap';
 
     return Scaffold(
-      backgroundColor: colorScheme.surface, // Menggunakan warna surface dari tema
+      backgroundColor: colorScheme.surface,
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            child: SlideTransition(
-              position: _offsetAnimation,
-              child: Form(
-                key: _formKey,
-                child: FadeTransition(
-                  opacity: _animController,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.lock_person_outlined, // Ikon yang lebih sesuai dengan Material 3
-                        size: 80,
-                        color: colorScheme.primary, // Menggunakan warna primary dari tema
-                      ),
-                      const SizedBox(height: 24),
-                      Text(
-                        'Selamat Datang',
-                        style: textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: colorScheme.onSurface,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Silakan masuk untuk melanjutkan',
-                        style: textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.onSurface.withAlpha((180)), // Opacity ~70%
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 40),
-                      TextFormField(
-                        key: _emailFieldKey,
-                        controller: _emailController,
-                        keyboardType: TextInputType.emailAddress,
-                        textInputAction: TextInputAction.next,
-                        style: textTheme.bodyLarge?.copyWith(color: colorScheme.onSurface),
-                        decoration: InputDecoration( // Gaya akan diambil dari inputDecorationTheme
-                          labelText: 'Email',
-                          prefixIcon: Icon(Icons.email_outlined, color: colorScheme.onSurfaceVariant),
-                          // border, borderRadius, dll. akan dari tema
-                        ),
-                        onChanged: (value) { // Logika onChanged Anda tetap
-                          if (_loginError != null) {
-                            setState(() {
-                              _loginError = null;
-                            });
-                            // Memicu validasi ulang untuk membersihkan error dari server jika pengguna mulai mengetik
-                            _emailFieldKey.currentState?.validate();
-                            _passwordFieldKey.currentState?.validate();
-                          }
-                        },
-                        validator: (value) { // Logika validator Anda tetap
-                          if (value == null || value.isEmpty) {
-                            return 'Email tidak boleh kosong';
-                          }
-                          final emailRegex = RegExp(r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+");
-                          if (!emailRegex.hasMatch(value)) {
-                            return 'Format email tidak valid';
-                          }
-                          // Hanya tampilkan _loginError jika relevan dengan field ini
-                          if (_loginError != null && (_loginError!.toLowerCase().contains('email') || _loginError!.toLowerCase().contains('salah'))) {
-                            return _loginError;
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        key: _passwordFieldKey,
-                        controller: _passwordController,
-                        obscureText: _obscure,
-                        textInputAction: TextInputAction.done,
-                        onFieldSubmitted: _loading ? null : (_) => _login(), // Menjalankan _login saat submit
-                        style: textTheme.bodyLarge?.copyWith(color: colorScheme.onSurface),
-                        decoration: InputDecoration( // Gaya akan diambil dari inputDecorationTheme
-                          labelText: 'Password',
-                          prefixIcon: Icon(Icons.lock_outline, color: colorScheme.onSurfaceVariant),
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                            onPressed: () => setState(() => _obscure = !_obscure),
+        child: Stack( // Gunakan Stack untuk menempatkan tombol tema di atas
+          children: [
+            Center(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 60), // Tambah padding atas untuk tombol
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                child: SlideTransition(
+                  position: _offsetAnimation,
+                  child: Form(
+                    key: _formKey,
+                    child: FadeTransition(
+                      opacity: _animController,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.lock_person_outlined,
+                            size: 70,
+                            color: colorScheme.primary,
                           ),
-                          // border, borderRadius, dll. akan dari tema
-                        ),
-                        onChanged: (value) { // Logika onChanged Anda tetap
-                          if (_loginError != null) {
-                            setState(() {
-                              _loginError = null;
-                            });
-                            // Memicu validasi ulang untuk membersihkan error dari server jika pengguna mulai mengetik
-                            _emailFieldKey.currentState?.validate();
-                            _passwordFieldKey.currentState?.validate();
-                          }
-                        },
-                        validator: (value) { // Logika validator Anda tetap
-                          if (value == null || value.isEmpty) {
-                            return 'Password tidak boleh kosong';
-                          }
-                          // Hanya tampilkan _loginError jika relevan dengan field ini
-                          if (_loginError != null && (_loginError!.toLowerCase().contains('password') || _loginError!.toLowerCase().contains('salah'))) {
-                            // Simpan error untuk ditampilkan, lalu null-kan agar tidak menempel terus
-                            final errorToDisplay = _loginError;
-                            // _loginError = null; // Pertimbangkan apakah ini perlu di-reset di sini atau setelah submit
-                            return errorToDisplay;
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 8),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          onPressed: _loading ? null : () {
-                            Navigator.pushNamed(context, '/forgot');
-                          },
-                          // Gaya TextButton akan diambil dari tema
-                          child: const Text('Lupa Password?'),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 50,
-                        child: ElevatedButton(
-                          onPressed: _loading ? null : _login,
-                          // Style (backgroundColor, shape, textStyle) akan diambil dari elevatedButtonTheme
-                          child: _loading
-                              ? SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 3,
-                              // Warna akan diambil dari foregroundColor ElevatedButton
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                theme.elevatedButtonTheme.style?.foregroundColor?.resolve({}) ??
-                                    colorScheme.onPrimary, // Fallback jika tidak ada di tema tombol
+                          const SizedBox(height: 20),
+                          Text(
+                            'Selamat Datang',
+                            style: textTheme.headlineMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.onSurface,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Silakan masuk untuk melanjutkan',
+                            style: textTheme.bodyMedium?.copyWith(
+                              color: colorScheme.onSurface.withAlpha(180),
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 32),
+                          TextFormField(
+                            key: _emailFieldKey,
+                            controller: _emailController,
+                            keyboardType: TextInputType.emailAddress,
+                            textInputAction: TextInputAction.next,
+                            style: textTheme.bodyLarge?.copyWith(color: colorScheme.onSurface),
+                            decoration: InputDecoration(
+                              labelText: 'Email',
+                              prefixIcon: Icon(Icons.email_outlined, color: colorScheme.onSurfaceVariant),
+                            ),
+                            onChanged: (value) {
+                              if (_loginError != null) {
+                                setState(() => _loginError = null);
+                                _emailFieldKey.currentState?.validate();
+                                _passwordFieldKey.currentState?.validate();
+                              }
+                            },
+                            validator: (value) {
+                              if (value == null || value.isEmpty) return 'Email tidak boleh kosong';
+                              final emailRegex = RegExp(r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+");
+                              if (!emailRegex.hasMatch(value)) return 'Format email tidak valid';
+                              if (_loginError != null && (_loginError!.toLowerCase().contains('email') || _loginError!.toLowerCase().contains('salah'))) {
+                                return _loginError;
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            key: _passwordFieldKey,
+                            controller: _passwordController,
+                            obscureText: _obscure,
+                            textInputAction: TextInputAction.done,
+                            onFieldSubmitted: _loading ? null : (_) => _login(),
+                            style: textTheme.bodyLarge?.copyWith(color: colorScheme.onSurface),
+                            decoration: InputDecoration(
+                              labelText: 'Password',
+                              prefixIcon: Icon(Icons.lock_outline, color: colorScheme.onSurfaceVariant),
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                                onPressed: () => setState(() => _obscure = !_obscure),
                               ),
                             ),
-                          )
-                              : const Text('Login'), // TextStyle akan dari tema tombol
-                        ),
+                            onChanged: (value) {
+                              if (_loginError != null) {
+                                setState(() => _loginError = null);
+                                _emailFieldKey.currentState?.validate();
+                                _passwordFieldKey.currentState?.validate();
+                              }
+                            },
+                            validator: (value) {
+                              if (value == null || value.isEmpty) return 'Password tidak boleh kosong';
+                              if (_loginError != null && (_loginError!.toLowerCase().contains('password') || _loginError!.toLowerCase().contains('salah'))) {
+                                final errorToDisplay = _loginError;
+                                return errorToDisplay;
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton(
+                              onPressed: _loading ? null : () => Navigator.pushNamed(context, '/forgot'),
+                              child: const Text('Lupa Password?'),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 50,
+                            child: ElevatedButton(
+                              onPressed: _loading ? null : _login,
+                              child: _loading
+                                  ? SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 3,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    theme.elevatedButtonTheme.style?.foregroundColor?.resolve({}) ?? colorScheme.onPrimary,
+                                  ),
+                                ),
+                              )
+                                  : const Text('Login'),
+                            ),
+                          ),
+                          // Row Switch tema dihapus dari sini
+                        ],
                       ),
-                      // Bagian Lupa Password di bawah tombol Login dihapus karena sudah dipindah ke atas
-                    ],
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
+            Positioned( // Tombol tema ditempatkan di pojok kanan atas
+              top: 12,
+              right: 12,
+              child: IconButton(
+                icon: Icon(themeIcon),
+                color: colorScheme.onSurface, // Warna ikon
+                tooltip: themeTooltip,
+                onPressed: () {
+                  themeNotifier.toggleTheme();
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
