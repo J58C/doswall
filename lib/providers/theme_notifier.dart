@@ -21,8 +21,14 @@ class ThemeNotifier with ChangeNotifier {
     }
   }
 
-  void toggleTheme() {
-    if (_themeMode == ThemeMode.light || _themeMode == ThemeMode.system) {
+  void toggleTheme(Brightness currentActualBrightness) {
+    if (_themeMode == ThemeMode.system) {
+      if (currentActualBrightness == Brightness.light) {
+        setThemeMode(ThemeMode.dark);
+      } else {
+        setThemeMode(ThemeMode.light);
+      }
+    } else if (_themeMode == ThemeMode.light) {
       setThemeMode(ThemeMode.dark);
     } else {
       setThemeMode(ThemeMode.light);

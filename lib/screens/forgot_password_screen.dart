@@ -1,8 +1,8 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import '../providers/theme_notifier.dart';
+import '../services/forgot_password_service.dart';
+import '../models/forgot_password_response.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -20,49 +20,23 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     if (!_formKey.currentState!.validate()) return;
     FocusScope.of(context).unfocus();
     setState(() => _loading = true);
-
-    final res = await http.post(
-      Uri.parse('https://doegus.sigmaskibidi.my.id/appkey/password/mailpw'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'email': _emailController.text.trim(),
-        'appkey': 'DOEGUSAPPACCESSCORS',
-      }),
+    final ForgotPasswordResponse result = await ForgotPasswordService.requestPasswordReset(
+      _emailController.text.trim(),
     );
 
     if (!mounted) return;
     setState(() => _loading = false);
 
-    final success = res.statusCode == 200;
-    String dialogMessage = '';
-
-    if (success) {
-      try {
-        final responseBody = jsonDecode(res.body);
-        dialogMessage = responseBody['message'] as String? ?? 'Link reset password telah dikirim ke email kamu.';
-      } catch (e) {
-        dialogMessage = 'Link reset password telah dikirim ke email kamu.';
-      }
-    } else {
-      try {
-        final responseBody = jsonDecode(res.body);
-        dialogMessage = responseBody['message'] as String? ?? 'Gagal mengirim email. Pastikan email benar atau coba lagi nanti.';
-      } catch (e) {
-        dialogMessage = 'Gagal mengirim email. Status: ${res.statusCode}. Pastikan email benar atau coba lagi nanti.';
-      }
-    }
-
-    if (!mounted) return;
     showDialog(
       context: context,
       builder: (BuildContext dialogContext) => AlertDialog(
-        title: Text(success ? 'Email Terkirim' : 'Gagal'),
-        content: Text(dialogMessage),
+        title: Text(result.success ? 'Email Terkirim' : 'Gagal'),
+        content: Text(result.message ?? (result.success ? 'Silakan periksa email Anda.' : 'Terjadi kesalahan.')),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.pop(dialogContext);
-              if (success) {
+              if (result.success) {
                 // Navigator.pop(context);
               }
             },
@@ -86,23 +60,24 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     final textTheme = theme.textTheme;
     final themeNotifier = Provider.of<ThemeNotifier>(context);
 
-    bool isCurrentlyDark = themeNotifier.themeMode == ThemeMode.dark ||
-        (themeNotifier.themeMode == ThemeMode.system && theme.brightness == Brightness.dark);
-    IconData themeIcon = isCurrentlyDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined;
-    String themeTooltip = isCurrentlyDark ? 'Ubah ke Mode Terang' : 'Ubah ke Mode Gelap';
+    final Brightness currentPlatformBrightness = MediaQuery.platformBrightnessOf(context);
+    bool isEffectivelyDark = themeNotifier.themeMode == ThemeMode.dark ||
+        (themeNotifier.themeMode == ThemeMode.system && currentPlatformBrightness == Brightness.dark);
+
+    IconData themeIcon = isEffectivelyDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined;
+    String themeTooltip = isEffectivelyDark ? 'Ubah ke Mode Terang' : 'Ubah ke Mode Gelap';
 
     return Scaffold(
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
         title: const Text('Lupa Password'),
-        actions: [ // Tambahkan IconButton di sini
+        actions: [
           IconButton(
             icon: Icon(themeIcon),
             tooltip: themeTooltip,
             onPressed: () {
-              themeNotifier.toggleTheme();
+              themeNotifier.toggleTheme(isEffectivelyDark ? Brightness.dark : Brightness.light);
             },
-            // Warna ikon akan otomatis diambil dari appBarTheme
           ),
         ],
       ),
@@ -129,7 +104,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     'Reset Password Anda',
                     style: textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: colorScheme.onSurface, // Menggunakan onSurface karena konten utama ada di 'surface' Scaffold
+                      color: colorScheme.onSurface,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -180,7 +155,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           : const Text('Kirim Email Reset'),
                     ),
                   ),
-                  // Row Switch tema dihapus dari sini
                 ],
               ),
             ),

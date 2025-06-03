@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
+import '../models/auth_response.dart';
 import '../services/user_storage.dart';
 import '../providers/theme_notifier.dart';
 
@@ -57,7 +58,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       _loginError = null;
     });
 
-    final result = await AuthService.login(
+    final AuthResponse result = await AuthService.login(
       _emailController.text.trim(),
       _passwordController.text.trim(),
     );
@@ -65,15 +66,15 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     if (!mounted) return;
     setState(() => _loading = false);
 
-    if (result['success']) {
-      final user = result['data'];
+    if (result.success && result.userData != null) {
+      final user = result.userData!;
       await UserStorage.saveUser(user);
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, '/home');
     } else {
       if (!mounted) return;
       setState(() {
-        _loginError = result['message'] as String? ?? 'Email atau password salah';
+        _loginError = result.message ?? 'Email atau password salah atau akun tidak aktif.';
       });
       _formKey.currentState!.validate();
     }
@@ -86,22 +87,22 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     final textTheme = theme.textTheme;
     final themeNotifier = Provider.of<ThemeNotifier>(context);
 
-    // Tentukan ikon berdasarkan mode tema saat ini
-    // Untuk ThemeMode.system, kita periksa brightness aktual dari tema
-    bool isCurrentlyDark = themeNotifier.themeMode == ThemeMode.dark ||
-        (themeNotifier.themeMode == ThemeMode.system && theme.brightness == Brightness.dark);
-    IconData themeIcon = isCurrentlyDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined;
-    String themeTooltip = isCurrentlyDark ? 'Ubah ke Mode Terang' : 'Ubah ke Mode Gelap';
+    final Brightness currentPlatformBrightness = MediaQuery.platformBrightnessOf(context);
+    bool isEffectivelyDark = themeNotifier.themeMode == ThemeMode.dark ||
+        (themeNotifier.themeMode == ThemeMode.system && currentPlatformBrightness == Brightness.dark);
+
+    IconData themeIcon = isEffectivelyDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined;
+    String themeTooltip = isEffectivelyDark ? 'Ubah ke Mode Terang' : 'Ubah ke Mode Gelap';
 
     return Scaffold(
       backgroundColor: colorScheme.surface,
       body: SafeArea(
-        child: Stack( // Gunakan Stack untuk menempatkan tombol tema di atas
+        child: Stack(
           children: [
             Center(
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 60), // Tambah padding atas untuk tombol
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 60),
                 keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                 child: SlideTransition(
                   position: _offsetAnimation,
@@ -226,7 +227,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                   : const Text('Login'),
                             ),
                           ),
-                          // Row Switch tema dihapus dari sini
                         ],
                       ),
                     ),
@@ -234,15 +234,15 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                 ),
               ),
             ),
-            Positioned( // Tombol tema ditempatkan di pojok kanan atas
+            Positioned(
               top: 12,
               right: 12,
               child: IconButton(
                 icon: Icon(themeIcon),
-                color: colorScheme.onSurface, // Warna ikon
+                color: colorScheme.onSurface,
                 tooltip: themeTooltip,
                 onPressed: () {
-                  themeNotifier.toggleTheme();
+                  themeNotifier.toggleTheme(isEffectivelyDark ? Brightness.dark : Brightness.light);
                 },
               ),
             ),
