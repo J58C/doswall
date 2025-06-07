@@ -19,25 +19,31 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Map<String, dynamic>? _user;
-  bool _loadingGeotag = false;
-  bool _updatingStatus = false;
   bool _isActive = false;
+  bool _isFetchingLocation = false;
+  bool _updatingStatus = false;
   List<String> _locationOptions = [];
   String? _selectedLocation;
   LatLng? _currentLatLng;
   final TextEditingController _notesController = TextEditingController();
+  late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (mounted) setState(() {});
+    });
     _loadUser();
   }
 
   @override
   void dispose() {
     _notesController.dispose();
+    _tabController.dispose();
     super.dispose();
   }
 
@@ -46,62 +52,75 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     setState(() {
       _user = user;
-      if (user['lat'] != null && user['long'] != null && user['lat'] is num && user['long'] is num) {
-        try {
-          double lat = (user['lat'] as num).toDouble();
-          double long = (user['long'] as num).toDouble();
-          _currentLatLng = LatLng(lat, long);
-          _isActive = true;
-          if (user['geotag'] != null && user['geotag'] != '-' && user['geotag'] is String) {
-            _locationOptions = [user['geotag']];
-            _selectedLocation = user['geotag'];
-          } else {
-            _locationOptions = []; _selectedLocation = null;
-          }
-        } catch (e) {
-          _currentLatLng = null; _isActive = false; _selectedLocation = null; _locationOptions = [];
-        }
+      bool shouldBeActive = user['lat'] != null && user['long'] != null;
+      if (shouldBeActive) {
+        _isActive = true;
+        _fetchLocationData();
       } else {
-        _isActive = false; _currentLatLng = null; _selectedLocation = null; _locationOptions = [];
+        _isActive = false;
       }
       _notesController.text = user['notes'] as String? ?? '';
     });
   }
 
-  Future<void> _toggleActive(bool value) async {
-    if (_user == null) return;
-    setState(() => _loadingGeotag = true);
-    final updatedUser = Map<String, dynamic>.from(_user!);
-
+  void _toggleActive(bool value) {
     if (value) {
-      final GeotagResponse result = await GeotagService.fetchGeotagData();
-      if (!mounted) { setState(() => _loadingGeotag = false); return; }
-      if (result.success) {
-        final locationList = result.locationLists ?? [];
-        final lat = result.lat;
-        final long = result.long;
-        if (lat != null && long != null && locationList.isNotEmpty) {
-          updatedUser..['geotag'] = locationList[0]..['lat'] = lat..['long'] = long..['status'] = _user!['status'] ?? 0..['notes'] = _notesController.text.trim().isEmpty ? '-' : _notesController.text.trim();
-          setState(() {
-            _locationOptions = locationList; _selectedLocation = locationList[0]; _currentLatLng = LatLng(lat, long); _isActive = true;
-          });
-        } else {
-          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.message ?? '❌ Data lokasi tidak lengkap dari server.')));
-          updatedUser..['geotag'] = '-'..['status'] = _user!['status'] ?? 0..['notes'] = _notesController.text.trim().isEmpty ? '-' : _notesController.text.trim()..remove('lat')..remove('long');
-          setState(() { _locationOptions = []; _selectedLocation = null; _currentLatLng = null; _isActive = false; });
-        }
-      } else {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.message ?? '❌ Gagal mendapatkan lokasi.')));
-        updatedUser..['geotag'] = '-'..['status'] = _user!['status'] ?? 0..['notes'] = _notesController.text.trim().isEmpty ? '-' : _notesController.text.trim()..remove('lat')..remove('long');
-        setState(() { _locationOptions = []; _selectedLocation = null; _currentLatLng = null; _isActive = false; });
-      }
+      setState(() => _isActive = true);
+      _fetchLocationData();
     } else {
-      updatedUser..['geotag'] = '-'..['status'] = _user!['status'] ?? 0..['notes'] = _notesController.text.trim().isEmpty ? '-' : _notesController.text.trim()..remove('lat')..remove('long');
-      setState(() { _locationOptions = []; _selectedLocation = null; _currentLatLng = null; _isActive = false; });
+      _showConfirmationDialog(
+        title: 'Nonaktifkan Presensi?',
+        content: 'Data lokasi dan kehadiran Anda akan dihapus untuk sesi ini.',
+        onConfirm: () {
+          setState(() {
+            _isActive = false;
+            _currentLatLng = null;
+            _locationOptions = [];
+            _selectedLocation = null;
+          });
+          final updatedUser = Map<String, dynamic>.from(_user!)
+            ..['geotag'] = '-'
+            ..remove('lat')
+            ..remove('long');
+          UserStorage.saveUser(updatedUser);
+          setState(() => _user = updatedUser);
+        },
+      );
     }
-    await UserStorage.saveUser(updatedUser);
-    if (!mounted) return;
-    setState(() { _user = updatedUser; _loadingGeotag = false; });
+  }
+
+  Future<void> _fetchLocationData() async {
+    setState(() => _isFetchingLocation = true);
+    try {
+      final GeotagResponse result = await GeotagService.fetchGeotagData();
+      if (!mounted) return;
+      if (result.success && result.lat != null && result.long != null && (result.locationLists?.isNotEmpty ?? false)) {
+        final uniqueLocations = result.locationLists!.toSet().toList();
+        setState(() {
+          _currentLatLng = LatLng(result.lat!, result.long!);
+          _locationOptions = uniqueLocations;
+          _selectedLocation = uniqueLocations[0];
+          final updatedUser = Map<String, dynamic>.from(_user!)
+            ..['geotag'] = _selectedLocation
+            ..['lat'] = result.lat
+            ..['long'] = result.long;
+          UserStorage.saveUser(updatedUser);
+          _user = updatedUser;
+        });
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.message ?? '❌ Gagal mendapatkan lokasi.')));
+          setState(() => _isActive = false);
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('❌ Terjadi error: ${e.toString()}')));
+        setState(() => _isActive = false);
+      }
+    } finally {
+      if (mounted) setState(() => _isFetchingLocation = false);
+    }
   }
 
   Future<void> _updateStatus(bool value) async {
@@ -112,18 +131,6 @@ class _HomeScreenState extends State<HomeScreen> {
     await UserStorage.saveUser(updatedUser);
     if (!mounted) return;
     setState(() { _user = updatedUser; _updatingStatus = false; });
-  }
-
-  void _logout() async {
-    await UserStorage.clearUser();
-    if (!mounted) return;
-    Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const LoginScreen()), (Route<dynamic> route) => false);
-  }
-
-  void _handleChangePassword() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Fitur ubah password belum diimplementasikan.'), behavior: SnackBarBehavior.floating),
-    );
   }
 
   void _saveData() async {
@@ -144,214 +151,373 @@ class _HomeScreenState extends State<HomeScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(result.success ? (result.message ?? '✅ Profil berhasil diperbarui.') : (result.message ?? '❌ Gagal memperbarui profil.')),
-        backgroundColor: result.success ? Theme.of(context).colorScheme.secondaryContainer : Theme.of(context).colorScheme.errorContainer,
-        behavior: SnackBarBehavior.floating,
+        backgroundColor: result.success
+            ? Theme.of(context).extension<CustomColors>()?.success
+            : Theme.of(context).colorScheme.errorContainer,
       ),
     );
   }
 
-  Widget _buildMapCard(ThemeData theme) {
-    if (_currentLatLng == null) return const SizedBox.shrink();
-    return Card(
-      elevation: theme.cardTheme.elevation ?? 1.0,
-      shape: theme.cardTheme.shape,
-      clipBehavior: Clip.antiAlias,
-      margin: const EdgeInsets.symmetric(vertical: 8.0),
-      child: SizedBox(
-        height: 120,
-        child: FlutterMap(
-          options: MapOptions(initialCenter: _currentLatLng!, initialZoom: 16, interactionOptions: const InteractionOptions(flags: InteractiveFlag.none)),
-          children: [
-            TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', tileProvider: CancellableNetworkTileProvider()),
-            MarkerLayer(markers: [Marker(point: _currentLatLng!, width: 40, height: 40, child: Icon(Icons.location_pin, color: theme.colorScheme.error, size: 30))]),
-          ],
-        ),
-      ),
+  void _logout() {
+    _showConfirmationDialog(
+        title: 'Konfirmasi Keluar',
+        content: 'Apakah Anda yakin ingin keluar dari aplikasi?',
+        onConfirm: () async {
+          await UserStorage.clearUser();
+          if (!mounted) return;
+          Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const LoginScreen()), (Route<dynamic> route) => false);
+        });
+  }
+
+  void _handleChangePassword() => Navigator.pushNamed(context, '/change-password');
+  void _handleAdminAction() => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Navigasi ke Panel Admin...')));
+  void _handleAnnouncements() => Navigator.pushNamed(context, '/announcements');
+
+  void _showConfirmationDialog({required String title, required String content, required VoidCallback onConfirm}) {
+    showDialog(context: context, builder: (context) => AlertDialog(
+      title: Text(title),
+      content: Text(content),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Batal')),
+        ElevatedButton(onPressed: () {
+          Navigator.of(context).pop();
+          onConfirm();
+        }, child: const Text('Konfirmasi')),
+      ],
+    ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final textTheme = theme.textTheme;
+    if (_user == null) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+
     final themeNotifier = Provider.of<ThemeNotifier>(context);
-
-    if (_user == null) {
-      return Scaffold(backgroundColor: colorScheme.surface, body: Center(child: CircularProgressIndicator(color: colorScheme.primary)));
-    }
-
-    final Brightness currentPlatformBrightness = MediaQuery.platformBrightnessOf(context);
-    bool isEffectivelyDark = themeNotifier.themeMode == ThemeMode.dark ||
-        (themeNotifier.themeMode == ThemeMode.system && currentPlatformBrightness == Brightness.dark);
-
-    IconData themeIconData = isEffectivelyDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined;
-    String themeTooltip = isEffectivelyDark ? 'Mode Terang' : 'Mode Gelap';
-
-    final validSelectedLocation = (_isActive && _locationOptions.isNotEmpty && _locationOptions.toSet().contains(_selectedLocation))
-        ? _selectedLocation
-        : (_isActive && _locationOptions.isNotEmpty ? _locationOptions[0] : null);
+    bool isEffectivelyDark = themeNotifier.themeMode == ThemeMode.dark || (themeNotifier.themeMode == ThemeMode.system && MediaQuery.of(context).platformBrightness == Brightness.dark);
 
     return Scaffold(
-      backgroundColor: colorScheme.surface,
       appBar: AppBar(
-        title: const Text('Beranda Doswall'),
+        leading: Padding(
+          padding: const EdgeInsets.all(10.0),
+          child: Image.asset('assets/images/unnes_logo.jpg', errorBuilder: (c, e, s) => const Icon(Icons.school)),
+        ),
+        title: const Text('Doswall'),
         actions: [
-          IconButton(icon: Icon(Icons.campaign_outlined, color: colorScheme.onPrimary), tooltip: 'Pengumuman', onPressed: () => Navigator.pushNamed(context, '/announcements')),
           IconButton(
-              icon: Icon(themeIconData, color: colorScheme.onPrimary),
-              tooltip: themeTooltip,
-              onPressed: () {
-                themeNotifier.toggleTheme(isEffectivelyDark ? Brightness.dark : Brightness.light);
-              }
+            icon: Icon(isEffectivelyDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
+            tooltip: isEffectivelyDark ? 'Mode Terang' : 'Mode Gelap',
+            onPressed: () => themeNotifier.toggleTheme(isEffectivelyDark ? Brightness.dark : Brightness.light),
           ),
-          PopupMenuButton<String>(
-            icon: Icon(Icons.more_vert, color: colorScheme.onPrimary),
-            tooltip: "Opsi Lainnya",
-            onSelected: (value) {
-              if (value == 'change_password') {
-                _handleChangePassword();
-              } else if (value == 'logout') {
-                _logout();
-              }
-            },
-            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-              const PopupMenuItem<String>(
-                value: 'change_password',
-                child: ListTile(
-                  leading: Icon(Icons.lock_person_outlined),
-                  title: Text('Ubah Password'),
-                ),
-              ),
-              const PopupMenuDivider(),
-              const PopupMenuItem<String>(
-                value: 'logout',
-                child: ListTile(
-                  leading: Icon(Icons.exit_to_app_rounded),
-                  title: Text('Keluar'),
-                ),
-              ),
-            ],
+        ],
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'Presensi', icon: Icon(Icons.location_on_outlined)),
+            Tab(text: 'Profil', icon: Icon(Icons.person_outline)),
+          ],
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _buildPresenceTab(context),
+          _buildProfileTab(context),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPresenceTab(BuildContext context) {
+    final theme = Theme.of(context);
+    bool isAdminOrSuperAdmin = _user!['role'] == 'admin' || _user!['role'] == 'superadmin';
+
+    return Stack(
+      children: [
+        RefreshIndicator(
+          onRefresh: _fetchLocationData,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 120.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildUserProfileHeader(theme),
+                const SizedBox(height: 16),
+                _buildGeotagControlCard(theme),
+                const SizedBox(height: 16),
+                _buildPresenceDetailsCard(theme),
+              ],
+            ),
+          ),
+        ),
+        _buildCustomFloatingActionBar(context, isAdminOrSuperAdmin),
+      ],
+    );
+  }
+
+  Widget _buildCustomFloatingActionBar(BuildContext context, bool isAdmin) {
+    if (_tabController.index != 0) return const SizedBox.shrink();
+
+    Widget? saveButton;
+    Widget? adminButton;
+    final theme = Theme.of(context);
+
+    if (_isActive) {
+      saveButton = FloatingActionButton.extended(
+        heroTag: 'fab_save',
+        onPressed: _isFetchingLocation ? null : _saveData,
+        label: const Text('Simpan'),
+        icon: _isFetchingLocation
+            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+            : const Icon(Icons.save_alt_outlined),
+      );
+    }
+
+    if (isAdmin) {
+      if (_isActive) {
+        adminButton = FloatingActionButton(
+          heroTag: 'fab_admin',
+          onPressed: _handleAdminAction,
+          tooltip: 'Admin Area',
+          backgroundColor: theme.colorScheme.tertiaryContainer,
+          foregroundColor: theme.colorScheme.onTertiaryContainer,
+          child: const Icon(Icons.admin_panel_settings_outlined),
+        );
+      } else {
+        adminButton = FloatingActionButton.extended(
+          heroTag: 'fab_admin',
+          onPressed: _handleAdminAction,
+          label: const Text('Admin'),
+          icon: const Icon(Icons.admin_panel_settings_outlined),
+          backgroundColor: theme.colorScheme.tertiaryContainer,
+          foregroundColor: theme.colorScheme.onTertiaryContainer,
+        );
+      }
+    }
+
+    Widget centerCluster;
+    if (adminButton != null && saveButton != null) {
+      centerCluster = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [adminButton, const SizedBox(width: 12), saveButton],
+      );
+    } else {
+      centerCluster = adminButton ?? saveButton ?? const SizedBox.shrink();
+    }
+
+    return Positioned(
+      bottom: 16,
+      left: 16,
+      right: 16,
+      child: Row(
+        children: [
+          const Spacer(),
+          centerCluster,
+          const Spacer(),
+          FloatingActionButton(
+            heroTag: 'fab_announcements',
+            onPressed: _handleAnnouncements,
+            tooltip: 'Pengumuman',
+            child: const Icon(Icons.campaign_outlined),
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _loadUser,
-        color: colorScheme.primary,
-        backgroundColor: colorScheme.surface,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
+    );
+  }
+
+  Widget _buildProfileTab(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListView(
+      padding: const EdgeInsets.all(16.0),
+      children: [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              children: [
+                CircleAvatar(
+                  radius: 40,
+                  backgroundColor: theme.colorScheme.primaryContainer,
+                  child: Icon(Icons.person_outline, size: 48, color: theme.colorScheme.onPrimaryContainer),
+                ),
+                const SizedBox(height: 16),
+                Text(_user!['name'] ?? 'Pengguna', style: theme.textTheme.headlineSmall, textAlign: TextAlign.center),
+                const SizedBox(height: 4),
+                Text(_user!['email'] ?? '-', style: theme.textTheme.bodyMedium),
+                const SizedBox(height: 8),
+                Chip(
+                  label: Text(_user!['role']?.toString().toUpperCase() ?? 'USER'),
+                  backgroundColor: theme.colorScheme.primary.withAlpha(50),
+                  labelStyle: TextStyle(color: theme.colorScheme.primary, fontWeight: FontWeight.bold),
+                  side: BorderSide.none,
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Card(
+          child: Column(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.lock_outline),
+                title: const Text('Ubah Password'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: _handleChangePassword,
+              ),
+              const Divider(height: 1, indent: 16, endIndent: 16),
+              ListTile(
+                leading: Icon(Icons.exit_to_app_rounded, color: theme.colorScheme.error),
+                title: Text('Keluar', style: TextStyle(color: theme.colorScheme.error)),
+                onTap: _logout,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildUserProfileHeader(ThemeData theme) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Image.asset(
-                    'assets/images/unnes_logo.jpg',
-                    height: 50,
-                    errorBuilder: (context, error, stackTrace) => Icon(Icons.school, size: 50, color: colorScheme.primary),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Halo,', style: textTheme.titleSmall?.copyWith(color: colorScheme.onSurface.withAlpha(180))), // Menggunakan onSurface
-                        Text(
-                          _user!['name'] as String? ?? 'Pengguna',
-                          style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface), // Menggunakan onSurface
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+              Text('Selamat Datang,', style: theme.textTheme.bodyMedium),
+              Text(
+                _user!['name'] as String? ?? 'Pengguna',
+                style: theme.textTheme.headlineMedium,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 6),
-              Text('Email: ${_user!['email'] as String? ?? '-'}', style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurface.withAlpha(150))), // Menggunakan onSurface
-              Text('Role: ${_user!['role'] as String? ?? '-'}', style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurface.withAlpha(150))), // Menggunakan onSurface
-              const SizedBox(height: 16),
-
-              Card(
-                elevation: theme.cardTheme.elevation,
-                shape: theme.cardTheme.shape,
-                color: theme.cardTheme.color,
-                margin: theme.cardTheme.margin ?? const EdgeInsets.symmetric(vertical: 6.0),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: Icon(Icons.location_on_outlined, color: colorScheme.primary, size: 26),
-                        title: Text('Geotag & Kehadiran', style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600, color: colorScheme.onSurface)),
-                        subtitle: Text('Status lokasi dan kehadiran Anda.', style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurface.withAlpha(180))),
-                        trailing: _loadingGeotag
-                            ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.0, color: colorScheme.primary))
-                            : Switch(value: _isActive, onChanged: _toggleActive, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                      ),
-                      if (_isActive) ...[
-                        Divider(height: 16, thickness: 0.5, color: colorScheme.outline.withAlpha(80)),
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: Icon(
-                            _user!['status'] == 1 ? Icons.check_circle_outline : Icons.highlight_off_outlined,
-                            color: _user!['status'] == 1 ? (theme.extension<CustomColors>()?.success ?? colorScheme.secondary) : colorScheme.error,
-                            size: 26,
-                          ),
-                          title: Text('Status: ${_user!['status'] == 1 ? 'Hadir' : 'Tidak Hadir'}', style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600, color: colorScheme.onSurface)),
-                          trailing: _updatingStatus
-                              ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.0, color: colorScheme.primary))
-                              : Switch(value: _user!['status'] == 1, onChanged: _updateStatus, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                        ),
-                        const SizedBox(height: 8),
-                        _buildMapCard(theme),
-                        const SizedBox(height: 8),
-                        if (_locationOptions.isNotEmpty)
-                          DropdownButtonFormField<String>(
-                            isExpanded: true,
-                            value: validSelectedLocation,
-                            items: _locationOptions.toSet().map((loc) => DropdownMenuItem<String>(value: loc, child: Text(loc, overflow: TextOverflow.ellipsis))).toList(),
-                            onChanged: (val) => setState(() => _selectedLocation = val),
-                            decoration: const InputDecoration(labelText: 'Lokasi Terdeteksi', isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10)),
-                            style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurface),
-                            dropdownColor: colorScheme.surfaceContainerHighest,
-                          )
-                        else if (_isActive)
-                          Padding(padding: const EdgeInsets.symmetric(vertical: 8.0), child: Text('Mencari opsi lokasi...', style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurface.withAlpha(180)))),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _notesController,
-                          style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurface),
-                          decoration: const InputDecoration(labelText: 'Catatan Tambahan (opsional)', isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12)),
-                          maxLines: 1,
-                          textInputAction: TextInputAction.done,
-                        ),
-                        const SizedBox(height: 10),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              if (_isActive)
-                Center(
-                  child: ElevatedButton.icon(
-                    onPressed: _saveData,
-                    icon: const Icon(Icons.save_alt_outlined),
-                    label: const Text('Simpan Perubahan Profil'),
-                    style: theme.elevatedButtonTheme.style?.copyWith(
-                      padding: WidgetStateProperty.all(const EdgeInsets.symmetric(horizontal: 32, vertical: 12)),
-                    ),
-                  ),
-                ),
             ],
+          ),
+        ),
+        Chip(
+          avatar: Icon(
+            Icons.circle,
+            size: 12,
+            color: _isActive
+                ? theme.extension<CustomColors>()?.success
+                : theme.colorScheme.error,
+          ),
+          label: Text(_isActive ? 'AKTIF' : 'NONAKTIF'),
+          labelStyle: theme.textTheme.labelLarge?.copyWith(
+            color: theme.colorScheme.onSecondaryContainer,
+          ),
+          backgroundColor: _isActive
+              ? theme.extension<CustomColors>()?.success?.withAlpha(50)
+              : theme.colorScheme.error.withAlpha(50),
+          side: BorderSide.none,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGeotagControlCard(ThemeData theme) {
+    return Card(
+      elevation: 2.0,
+      color: theme.colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(
+            Icons.my_location_rounded,
+            color: theme.colorScheme.primary,
+            size: 32,
+          ),
+          title: Text('Status Presensi', style: theme.textTheme.titleLarge),
+          subtitle: Text(_isActive ? 'Presensi diaktifkan' : 'Aktifkan untuk melapor'),
+          trailing: Switch(
+            value: _isActive,
+            onChanged: _toggleActive,
           ),
         ),
       ),
     );
+  }
+
+  Widget _buildPresenceDetailsCard(ThemeData theme) {
+    final validSelectedLocation = (_locationOptions.isNotEmpty && _locationOptions.contains(_selectedLocation))
+        ? _selectedLocation
+        : (_locationOptions.isNotEmpty ? _locationOptions[0] : null);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Card(
+          child: ListTile(
+            leading: Icon(
+              _user!['status'] == 1 ? Icons.check_circle_outline : Icons.highlight_off_outlined,
+              color: _user!['status'] == 1 ? theme.extension<CustomColors>()?.success : theme.colorScheme.error,
+              size: 28,
+            ),
+            title: const Text('Status Kehadiran'),
+            trailing: _updatingStatus
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.0))
+                : Switch(
+              value: _user!['status'] == 1,
+              onChanged: _updateStatus,
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text('Lokasi Terdeteksi', style: theme.textTheme.titleMedium),
+        const SizedBox(height: 8),
+        _buildMapCard(theme),
+        const SizedBox(height: 16),
+        if (_isActive)
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  DropdownButtonFormField<String>(
+                    isExpanded: true,
+                    value: validSelectedLocation,
+                    items: _locationOptions.map((loc) => DropdownMenuItem<String>(value: loc, child: Text(loc, overflow: TextOverflow.ellipsis))).toList(),
+                    onChanged: (val) => setState(() => _selectedLocation = val),
+                    decoration: const InputDecoration(labelText: 'Pilih Lokasi Terdekat'),
+                    disabledHint: const Text('Tidak ada lokasi tersedia'),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _notesController,
+                    decoration: const InputDecoration(labelText: 'Catatan Tambahan', hintText: 'Mis: Sedang WFH atau dinas luar'),
+                    maxLines: 2,
+                    textInputAction: TextInputAction.done,
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildMapCard(ThemeData theme) {
+    Widget mapContent;
+    if (_isFetchingLocation) {
+      mapContent = const Center(child: CircularProgressIndicator());
+    } else if (_currentLatLng == null) {
+      mapContent = Center(child: Padding(padding: const EdgeInsets.all(8.0),
+          child: Text('Lokasi tidak ditemukan.', style: theme.textTheme.bodyMedium, textAlign: TextAlign.center)));
+    } else {
+      mapContent = FlutterMap(
+        options: MapOptions(
+          initialCenter: _currentLatLng!,
+          initialZoom: 17.5,
+          interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
+        ),
+        children: [
+          TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', tileProvider: CancellableNetworkTileProvider()),
+          MarkerLayer(markers: [Marker(point: _currentLatLng!, width: 40, height: 40, child: Icon(Icons.location_pin, color: theme.colorScheme.error, size: 40))]),
+        ],
+      );
+    }
+    return Card(clipBehavior: Clip.antiAlias, margin: EdgeInsets.zero, child: SizedBox(height: 150, child: mapContent));
   }
 }

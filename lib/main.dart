@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import 'providers/theme_notifier.dart'; // Impor ThemeNotifier Anda
-import 'theme/app_theme.dart';        // Impor fungsi tema
-// Impor untuk CustomColors tidak lagi diperlukan di sini jika hanya digunakan di app_theme.dart
-// Jika Anda mengakses CustomColors.of(context) di MyApp atau main, maka impor theme/custom_colors.dart
+import 'providers/theme_notifier.dart';
+import 'theme/app_theme.dart';
 
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/forgot_password_screen.dart';
 import 'screens/announcements_screen.dart';
+import 'screens/change_password_screen.dart';
 import 'services/user_storage.dart';
 
 
@@ -38,8 +37,8 @@ class MyApp extends StatelessWidget {
         return MaterialApp(
           title: 'Doswall',
           debugShowCheckedModeBanner: false,
-          theme: buildLightTheme(), // Menggunakan fungsi dari app_theme.dart
-          darkTheme: buildDarkTheme(), // Menggunakan fungsi dari app_theme.dart
+          theme: buildLightTheme(),
+          darkTheme: buildDarkTheme(),
           themeMode: themeNotifier.themeMode,
           initialRoute: isLoggedIn ? '/home' : '/login',
           routes: {
@@ -47,6 +46,7 @@ class MyApp extends StatelessWidget {
             '/home': (_) => const HomeScreen(),
             '/forgot': (_) => const ForgotPasswordScreen(),
             '/announcements': (_) => const AnnouncementsScreen(),
+            '/change-password': (_) => const ChangePasswordScreen(),
           },
         );
       },

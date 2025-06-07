@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 class CustomColors extends ThemeExtension<CustomColors> {
   const CustomColors({
     required this.success,
-    // Anda bisa menambahkan warna kustom lainnya di sini jika perlu
   });
 
   final Color? success;
@@ -25,9 +24,4 @@ class CustomColors extends ThemeExtension<CustomColors> {
       success: Color.lerp(success, other.success, t),
     );
   }
-
-// Opsional: Helper untuk akses yang lebih mudah
-// static CustomColors? of(BuildContext context) {
-//   return Theme.of(context).extension<CustomColors>();
-// }
 }

@@ -51,12 +51,18 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   }
 
   Future<void> _login() async {
+    if (_loginError != null) {
+      setState(() {
+        _loginError = null;
+      });
+      _formKey.currentState?.validate();
+    }
+
+
     if (!_formKey.currentState!.validate()) return;
+
     FocusScope.of(context).unfocus();
-    setState(() {
-      _loading = true;
-      _loginError = null;
-    });
+    setState(() => _loading = true);
 
     final AuthResponse result = await AuthService.login(
       _emailController.text.trim(),
@@ -137,6 +143,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 32),
+
                           TextFormField(
                             key: _emailFieldKey,
                             controller: _emailController,
@@ -158,7 +165,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                               if (value == null || value.isEmpty) return 'Email tidak boleh kosong';
                               final emailRegex = RegExp(r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+");
                               if (!emailRegex.hasMatch(value)) return 'Format email tidak valid';
-                              if (_loginError != null && (_loginError!.toLowerCase().contains('email') || _loginError!.toLowerCase().contains('salah'))) {
+                              if (_loginError != null) {
                                 return _loginError;
                               }
                               return null;
@@ -192,9 +199,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                             },
                             validator: (value) {
                               if (value == null || value.isEmpty) return 'Password tidak boleh kosong';
-                              if (_loginError != null && (_loginError!.toLowerCase().contains('password') || _loginError!.toLowerCase().contains('salah'))) {
-                                final errorToDisplay = _loginError;
-                                return errorToDisplay;
+                              if (_loginError != null) {
+                                return _loginError;
                               }
                               return null;
                             },

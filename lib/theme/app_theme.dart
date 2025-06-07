@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'app_colors.dart'; // Impor konstanta warna
-import 'custom_colors.dart'; // Impor CustomColors ThemeExtension
+import 'app_colors.dart';
+import 'custom_colors.dart';
 
-// Fungsi ini bisa tetap di sini atau dipindahkan ke file utilitas teks jika perlu
 TextTheme _buildTextTheme(TextTheme base, Color textColor, String fontFamily) {
   return base.copyWith(
     displayLarge: base.displayLarge?.copyWith(color: textColor, fontFamily: fontFamily, fontWeight: FontWeight.bold),
@@ -27,7 +26,7 @@ TextTheme _buildTextTheme(TextTheme base, Color textColor, String fontFamily) {
   );
 }
 
-ThemeData buildLightTheme() { // Nama diubah agar lebih jelas saat diimpor
+ThemeData buildLightTheme() {
   final base = ThemeData.light(useMaterial3: true);
   return base.copyWith(
     colorScheme: ColorScheme(
@@ -47,8 +46,8 @@ ThemeData buildLightTheme() { // Nama diubah agar lebih jelas saat diimpor
       error: errorRedColor,
       onError: Colors.white,
       errorContainer: Color.lerp(errorRedColor, Colors.white, 0.4),
-      onErrorContainer: darkTextColor,     // Menggunakan konstanta dari app_colors.dart
-      surface: Colors.white, // Atau lightBackgroundColor jika ingin surface sama dengan background
+      onErrorContainer: darkTextColor,
+      surface: Colors.white,
       onSurface: darkTextColor,
       surfaceContainerHighest: Color.lerp(lightBackgroundColor, Colors.black, 0.05),
       onSurfaceVariant: darkTextColor,
@@ -62,7 +61,7 @@ ThemeData buildLightTheme() { // Nama diubah agar lebih jelas saat diimpor
     ),
     primaryColor: primaryColor,
     scaffoldBackgroundColor: lightBackgroundColor,
-    textTheme: _buildTextTheme(base.textTheme, darkTextColor, 'Inter'), // Pastikan font Inter terdaftar di pubspec.yaml
+    textTheme: _buildTextTheme(base.textTheme, darkTextColor, 'Inter'),
     appBarTheme: AppBarTheme(
       backgroundColor: primaryColor,
       foregroundColor: darkTextColor,
