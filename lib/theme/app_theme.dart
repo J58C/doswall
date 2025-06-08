@@ -1,28 +1,35 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
 import 'custom_colors.dart';
 
-TextTheme _buildTextTheme(TextTheme base, Color textColor, String fontFamily) {
+TextTheme _buildTextTheme(TextTheme base, Color textColor, String headingFontFamily, String bodyFontFamily) {
+
+  var headingTextTheme = GoogleFonts.getTextTheme(headingFontFamily, base);
+  var bodyTextTheme = GoogleFonts.getTextTheme(bodyFontFamily, base);
+
   return base.copyWith(
-    displayLarge: base.displayLarge?.copyWith(color: textColor, fontFamily: fontFamily, fontWeight: FontWeight.bold),
-    displayMedium: base.displayMedium?.copyWith(color: textColor, fontFamily: fontFamily, fontWeight: FontWeight.bold),
-    displaySmall: base.displaySmall?.copyWith(color: textColor, fontFamily: fontFamily, fontWeight: FontWeight.bold),
-    headlineLarge: base.headlineLarge?.copyWith(color: textColor, fontFamily: fontFamily, fontWeight: FontWeight.bold),
-    headlineMedium: base.headlineMedium?.copyWith(color: textColor, fontFamily: fontFamily, fontWeight: FontWeight.w600),
-    headlineSmall: base.headlineSmall?.copyWith(color: textColor, fontFamily: fontFamily, fontWeight: FontWeight.w600),
-    titleLarge: base.titleLarge?.copyWith(color: textColor, fontFamily: fontFamily, fontWeight: FontWeight.w600),
-    titleMedium: base.titleMedium?.copyWith(color: textColor, fontFamily: fontFamily),
-    titleSmall: base.titleSmall?.copyWith(color: textColor, fontFamily: fontFamily, fontWeight: FontWeight.w500),
-    bodyLarge: base.bodyLarge?.copyWith(color: textColor, fontFamily: fontFamily),
-    bodyMedium: base.bodyMedium?.copyWith(color: textColor, fontFamily: fontFamily),
-    bodySmall: base.bodySmall?.copyWith(color: textColor.withAlpha((0.7 * 255).round()), fontFamily: fontFamily),
-    labelLarge: base.labelLarge?.copyWith(fontFamily: fontFamily, fontWeight: FontWeight.bold),
-    labelMedium: base.labelMedium?.copyWith(color: textColor, fontFamily: fontFamily, fontWeight: FontWeight.w500),
-    labelSmall: base.labelSmall?.copyWith(color: textColor, fontFamily: fontFamily),
+    // --- HEADING FONTS (Poppins) ---
+    displayLarge: headingTextTheme.displayLarge?.copyWith(color: textColor, fontSize: 52, fontWeight: FontWeight.bold),
+    displayMedium: headingTextTheme.displayMedium?.copyWith(color: textColor, fontSize: 42, fontWeight: FontWeight.bold),
+    displaySmall: headingTextTheme.displaySmall?.copyWith(color: textColor, fontSize: 32, fontWeight: FontWeight.bold),
+    headlineLarge: headingTextTheme.headlineLarge?.copyWith(color: textColor, fontSize: 28, fontWeight: FontWeight.bold),
+    headlineMedium: headingTextTheme.headlineMedium?.copyWith(color: textColor, fontSize: 24, fontWeight: FontWeight.w700),
+    headlineSmall: headingTextTheme.headlineSmall?.copyWith(color: textColor, fontSize: 20, fontWeight: FontWeight.w600),
+    titleLarge: headingTextTheme.titleLarge?.copyWith(color: textColor, fontSize: 18, fontWeight: FontWeight.w600),
+
+    // --- BODY & UI FONTS (Inter) ---
+    titleMedium: bodyTextTheme.titleMedium?.copyWith(color: textColor, fontSize: 16, fontWeight: FontWeight.w600),
+    titleSmall: bodyTextTheme.titleSmall?.copyWith(color: textColor, fontSize: 14, fontWeight: FontWeight.w500),
+    bodyLarge: bodyTextTheme.bodyLarge?.copyWith(color: textColor, fontSize: 16),
+    bodyMedium: bodyTextTheme.bodyMedium?.copyWith(color: textColor, fontSize: 14),
+    bodySmall: bodyTextTheme.bodySmall?.copyWith(color: textColor.withAlpha((0.7 * 255).round()), fontSize: 12),
+    labelLarge: bodyTextTheme.labelLarge?.copyWith(fontSize: 14, fontWeight: FontWeight.bold),
+    labelMedium: bodyTextTheme.labelMedium?.copyWith(color: textColor, fontSize: 12, fontWeight: FontWeight.w500),
+    labelSmall: bodyTextTheme.labelSmall?.copyWith(color: textColor, fontSize: 11),
   ).apply(
     bodyColor: textColor,
     displayColor: textColor,
-    fontFamily: fontFamily,
   );
 }
 
@@ -61,19 +68,19 @@ ThemeData buildLightTheme() {
     ),
     primaryColor: primaryColor,
     scaffoldBackgroundColor: lightBackgroundColor,
-    textTheme: _buildTextTheme(base.textTheme, darkTextColor, 'Inter'),
+    textTheme: _buildTextTheme(base.textTheme, darkTextColor, 'Poppins', 'Inter'),
     appBarTheme: AppBarTheme(
       backgroundColor: primaryColor,
       foregroundColor: darkTextColor,
       elevation: 0,
-      titleTextStyle: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: darkTextColor, fontFamily: 'Inter'),
+      titleTextStyle: _buildTextTheme(base.textTheme, darkTextColor, 'Poppins', 'Inter').titleLarge,
       iconTheme: IconThemeData(color: darkTextColor),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         backgroundColor: secondaryColor,
         foregroundColor: darkTextColor,
-        textStyle: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Inter'),
+        textStyle: _buildTextTheme(base.textTheme, darkTextColor, 'Poppins', 'Inter').labelLarge,
         padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
       ),
@@ -81,7 +88,7 @@ ThemeData buildLightTheme() {
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         foregroundColor: secondaryColor,
-        textStyle: TextStyle(fontWeight: FontWeight.w600, fontFamily: 'Inter'),
+        textStyle: _buildTextTheme(base.textTheme, darkTextColor, 'Poppins', 'Inter').labelLarge?.copyWith(fontWeight: FontWeight.w600),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
       ),
     ),
@@ -89,7 +96,7 @@ ThemeData buildLightTheme() {
       style: OutlinedButton.styleFrom(
         foregroundColor: secondaryColor,
         side: BorderSide(color: secondaryColor, width: 1.5),
-        textStyle: TextStyle(fontWeight: FontWeight.w600, fontFamily: 'Inter'),
+        textStyle: _buildTextTheme(base.textTheme, darkTextColor, 'Poppins', 'Inter').labelLarge?.copyWith(fontWeight: FontWeight.w600),
         padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
       ),
@@ -97,8 +104,8 @@ ThemeData buildLightTheme() {
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: primaryColor.withAlpha((0.05 * 255).round()),
-      hintStyle: TextStyle(color: darkTextColor.withAlpha((0.6 * 255).round()), fontFamily: 'Inter'),
-      labelStyle: TextStyle(color: primaryColor, fontFamily: 'Inter'),
+      hintStyle: TextStyle(color: darkTextColor.withAlpha((0.6 * 255).round())),
+      labelStyle: TextStyle(color: primaryColor),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12.0),
         borderSide: BorderSide(color: primaryColor.withAlpha((0.3 * 255).round())),
@@ -122,7 +129,7 @@ ThemeData buildLightTheme() {
     ),
     cardTheme: CardThemeData(
       elevation: 1.0,
-      color: Colors.white, // Ini adalah colorScheme.surface untuk light theme
+      color: Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
       margin: EdgeInsets.all(8.0),
     ),
@@ -136,9 +143,16 @@ ThemeData buildLightTheme() {
       labelColor: accentOrangeColor,
       unselectedLabelColor: darkTextColor.withAlpha((0.7 * 255).round()),
       indicatorColor: accentOrangeColor,
-      labelStyle: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Inter'),
-      unselectedLabelStyle: TextStyle(fontFamily: 'Inter'),
+      labelStyle: _buildTextTheme(base.textTheme, accentOrangeColor, 'Poppins', 'Inter').labelLarge,
+      unselectedLabelStyle: _buildTextTheme(base.textTheme, darkTextColor.withAlpha((0.7 * 255).round()), 'Poppins', 'Inter').labelLarge,
       indicatorSize: TabBarIndicatorSize.label,
+    ),
+    dialogTheme: DialogThemeData(
+      backgroundColor: lightBackgroundColor,
+      titleTextStyle: _buildTextTheme(base.textTheme, darkTextColor, 'Poppins', 'Inter').headlineSmall,
+      contentTextStyle: _buildTextTheme(base.textTheme, darkTextColor, 'Poppins', 'Inter').bodyMedium,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28.0)),
+      actionsPadding: EdgeInsets.all(24),
     ),
     progressIndicatorTheme: ProgressIndicatorThemeData(
       color: secondaryColor,
@@ -194,13 +208,6 @@ ThemeData buildLightTheme() {
       checkmarkColor: darkTextColor,
       deleteIconColor: errorRedColor,
     ),
-    dialogTheme: DialogThemeData(
-      backgroundColor: lightBackgroundColor,
-      titleTextStyle: TextStyle(color: darkTextColor, fontSize: 22, fontWeight: FontWeight.w600, fontFamily: 'Inter'),
-      contentTextStyle: TextStyle(color: darkTextColor, fontSize: 16, fontFamily: 'Inter'),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28.0)),
-      actionsPadding: EdgeInsets.all(24),
-    ),
     snackBarTheme: SnackBarThemeData(
       backgroundColor: darkTextColor.withAlpha((0.9 * 255).round()),
       contentTextStyle: TextStyle(color: lightBackgroundColor, fontFamily: 'Inter'),
@@ -214,7 +221,7 @@ ThemeData buildLightTheme() {
   );
 }
 
-ThemeData buildDarkTheme() { // Nama diubah agar lebih jelas saat diimpor
+ThemeData buildDarkTheme() {
   final base = ThemeData.dark(useMaterial3: true);
   return base.copyWith(
     colorScheme: ColorScheme(
@@ -234,7 +241,7 @@ ThemeData buildDarkTheme() { // Nama diubah agar lebih jelas saat diimpor
       error: errorRedColor,
       onError: Colors.white,
       errorContainer: Color.lerp(errorRedColor, Colors.black, 0.4),
-      onErrorContainer: lightTextColor,    // Menggunakan konstanta dari app_colors.dart
+      onErrorContainer: lightTextColor,
       surface: darkSurfaceColor,
       onSurface: lightTextColor,
       surfaceContainerHighest: Color.lerp(darkBackgroundColor, Colors.white, 0.08),
@@ -249,19 +256,19 @@ ThemeData buildDarkTheme() { // Nama diubah agar lebih jelas saat diimpor
     ),
     primaryColor: primaryColor,
     scaffoldBackgroundColor: darkBackgroundColor,
-    textTheme: _buildTextTheme(base.textTheme, lightTextColor, 'Inter'), // Pastikan font Inter terdaftar
+    textTheme: _buildTextTheme(base.textTheme, lightTextColor, 'Poppins', 'Inter'),
     appBarTheme: AppBarTheme(
       backgroundColor: darkSurfaceColor,
       foregroundColor: lightTextColor,
       elevation: 0,
-      titleTextStyle: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: lightTextColor, fontFamily: 'Inter'),
+      titleTextStyle: _buildTextTheme(base.textTheme, lightTextColor, 'Poppins', 'Inter').titleLarge,
       iconTheme: IconThemeData(color: lightTextColor),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         backgroundColor: secondaryColor,
         foregroundColor: lightTextColor,
-        textStyle: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Inter'),
+        textStyle: _buildTextTheme(base.textTheme, lightTextColor, 'Poppins', 'Inter').labelLarge,
         padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
       ),
@@ -269,7 +276,7 @@ ThemeData buildDarkTheme() { // Nama diubah agar lebih jelas saat diimpor
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         foregroundColor: accentOrangeColor,
-        textStyle: TextStyle(fontWeight: FontWeight.w600, fontFamily: 'Inter'),
+        textStyle: _buildTextTheme(base.textTheme, accentOrangeColor, 'Poppins', 'Inter').labelLarge?.copyWith(fontWeight: FontWeight.w600),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
       ),
     ),
@@ -277,16 +284,16 @@ ThemeData buildDarkTheme() { // Nama diubah agar lebih jelas saat diimpor
       style: OutlinedButton.styleFrom(
         foregroundColor: accentOrangeColor,
         side: BorderSide(color: accentOrangeColor, width: 1.5),
-        textStyle: TextStyle(fontWeight: FontWeight.w600, fontFamily: 'Inter'),
+        textStyle: _buildTextTheme(base.textTheme, accentOrangeColor, 'Poppins', 'Inter').labelLarge?.copyWith(fontWeight: FontWeight.w600),
         padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: darkSurfaceColor.withAlpha((0.8 * 255).round()), // Sedikit penyesuaian
-      hintStyle: TextStyle(color: lightTextColor.withAlpha((0.6 * 255).round()), fontFamily: 'Inter'),
-      labelStyle: TextStyle(color: lightTextColor.withAlpha((0.8 * 255).round()), fontFamily: 'Inter'),
+      fillColor: darkSurfaceColor.withAlpha((0.8 * 255).round()),
+      hintStyle: TextStyle(color: lightTextColor.withAlpha((0.6 * 255).round())),
+      labelStyle: TextStyle(color: lightTextColor.withAlpha((0.8 * 255).round())),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12.0),
         borderSide: BorderSide(color: lightTextColor.withAlpha((0.3 * 255).round())),
@@ -324,9 +331,16 @@ ThemeData buildDarkTheme() { // Nama diubah agar lebih jelas saat diimpor
       labelColor: accentOrangeColor,
       unselectedLabelColor: lightTextColor.withAlpha((0.7 * 255).round()),
       indicatorColor: accentOrangeColor,
-      labelStyle: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Inter'),
-      unselectedLabelStyle: TextStyle(fontFamily: 'Inter'),
+      labelStyle: _buildTextTheme(base.textTheme, accentOrangeColor, 'Poppins', 'Inter').labelLarge,
+      unselectedLabelStyle: _buildTextTheme(base.textTheme, lightTextColor.withAlpha((0.7 * 255).round()), 'Poppins', 'Inter').labelLarge,
       indicatorSize: TabBarIndicatorSize.label,
+    ),
+    dialogTheme: DialogThemeData(
+      backgroundColor: darkSurfaceColor,
+      titleTextStyle: _buildTextTheme(base.textTheme, lightTextColor, 'Poppins', 'Inter').headlineSmall,
+      contentTextStyle: _buildTextTheme(base.textTheme, lightTextColor, 'Poppins', 'Inter').bodyMedium,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28.0)),
+      actionsPadding: EdgeInsets.all(24),
     ),
     progressIndicatorTheme: ProgressIndicatorThemeData(
       color: accentOrangeColor,
@@ -381,13 +395,6 @@ ThemeData buildDarkTheme() { // Nama diubah agar lebih jelas saat diimpor
       iconTheme: IconThemeData(color: lightTextColor, size: 18),
       checkmarkColor: darkTextColor,
       deleteIconColor: errorRedColor,
-    ),
-    dialogTheme: DialogThemeData(
-      backgroundColor: darkSurfaceColor,
-      titleTextStyle: TextStyle(color: lightTextColor, fontSize: 22, fontWeight: FontWeight.w600, fontFamily: 'Inter'),
-      contentTextStyle: TextStyle(color: lightTextColor, fontSize: 16, fontFamily: 'Inter'),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28.0)),
-      actionsPadding: EdgeInsets.all(24),
     ),
     snackBarTheme: SnackBarThemeData(
       backgroundColor: lightTextColor.withAlpha((0.9 * 255).round()),

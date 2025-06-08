@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:ui';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_tile_provider.dart';
 import 'package:latlong2/latlong.dart';
@@ -29,6 +30,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   LatLng? _currentLatLng;
   final TextEditingController _notesController = TextEditingController();
   late TabController _tabController;
+  String? _storedNotes;
 
   @override
   void initState() {
@@ -38,6 +40,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       if (mounted) setState(() {});
     });
     _loadUser();
+    _notesController.addListener(() {
+      if (mounted) {
+        setState(() {});
+      }
+    });
   }
 
   @override
@@ -59,7 +66,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       } else {
         _isActive = false;
       }
-      _notesController.text = user['notes'] as String? ?? '';
+      _storedNotes = user['notes'] as String?;
     });
   }
 
@@ -192,16 +199,37 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     if (_user == null) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
+    final theme = Theme.of(context);
     final themeNotifier = Provider.of<ThemeNotifier>(context);
     bool isEffectivelyDark = themeNotifier.themeMode == ThemeMode.dark || (themeNotifier.themeMode == ThemeMode.system && MediaQuery.of(context).platformBrightness == Brightness.dark);
 
     return Scaffold(
       appBar: AppBar(
-        leading: Padding(
-          padding: const EdgeInsets.all(10.0),
-          child: Image.asset('assets/images/unnes_logo.jpg', errorBuilder: (c, e, s) => const Icon(Icons.school)),
+        automaticallyImplyLeading: false,
+        title: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.white.withAlpha(40),
+            borderRadius: BorderRadius.circular(30),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Image.asset(
+                'assets/images/unnes_logo.jpg',
+                height: 26,
+                errorBuilder: (c, e, s) => const Icon(Icons.school, size: 26),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                  'Doswall',
+                  style: theme.appBarTheme.titleTextStyle?.copyWith(
+                    color: theme.appBarTheme.foregroundColor,
+                  )
+              ),
+            ],
+          ),
         ),
-        title: const Text('Doswall'),
         actions: [
           IconButton(
             icon: Icon(isEffectivelyDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
@@ -231,96 +259,117 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final theme = Theme.of(context);
     bool isAdminOrSuperAdmin = _user!['role'] == 'admin' || _user!['role'] == 'superadmin';
 
-    return Stack(
-      children: [
-        RefreshIndicator(
-          onRefresh: _fetchLocationData,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 120.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _buildUserProfileHeader(theme),
-                const SizedBox(height: 16),
-                _buildGeotagControlCard(theme),
-                const SizedBox(height: 16),
-                _buildPresenceDetailsCard(theme),
-              ],
-            ),
-          ),
-        ),
-        _buildCustomFloatingActionBar(context, isAdminOrSuperAdmin),
-      ],
-    );
-  }
-
-  Widget _buildCustomFloatingActionBar(BuildContext context, bool isAdmin) {
-    if (_tabController.index != 0) return const SizedBox.shrink();
-
-    Widget? saveButton;
-    Widget? adminButton;
-    final theme = Theme.of(context);
-
-    if (_isActive) {
-      saveButton = FloatingActionButton.extended(
+    Widget saveButton = AnimatedScale(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOutBack,
+      scale: _isActive ? 1.0 : 0.0,
+      child: FloatingActionButton.extended(
         heroTag: 'fab_save',
         onPressed: _isFetchingLocation ? null : _saveData,
         label: const Text('Simpan'),
         icon: _isFetchingLocation
             ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
             : const Icon(Icons.save_alt_outlined),
-      );
-    }
+      ),
+    );
 
-    if (isAdmin) {
-      if (_isActive) {
-        adminButton = FloatingActionButton(
+    Widget? adminButton;
+    if (isAdminOrSuperAdmin) {
+      adminButton = AnimatedSwitcher(
+        duration: const Duration(milliseconds: 250),
+        transitionBuilder: (Widget child, Animation<double> animation) {
+          return ScaleTransition(
+            scale: animation,
+            child: FadeTransition(opacity: animation, child: child),
+          );
+        },
+        child: _isActive
+            ? FloatingActionButton(
+          key: const ValueKey('admin_small'),
           heroTag: 'fab_admin',
           onPressed: _handleAdminAction,
           tooltip: 'Admin Area',
           backgroundColor: theme.colorScheme.tertiaryContainer,
           foregroundColor: theme.colorScheme.onTertiaryContainer,
           child: const Icon(Icons.admin_panel_settings_outlined),
-        );
-      } else {
-        adminButton = FloatingActionButton.extended(
+        )
+            : FloatingActionButton.extended(
+          key: const ValueKey('admin_large'),
           heroTag: 'fab_admin',
           onPressed: _handleAdminAction,
           label: const Text('Admin'),
           icon: const Icon(Icons.admin_panel_settings_outlined),
           backgroundColor: theme.colorScheme.tertiaryContainer,
           foregroundColor: theme.colorScheme.onTertiaryContainer,
-        );
-      }
+        ),
+      );
+    }
+
+    Widget? adminPlaceholder;
+    if (adminButton != null && _isActive) {
+      adminPlaceholder = const SizedBox(width: 56);
     }
 
     Widget centerCluster;
-    if (adminButton != null && saveButton != null) {
+    if (adminButton != null && _isActive) {
       centerCluster = Row(
         mainAxisSize: MainAxisSize.min,
-        children: [adminButton, const SizedBox(width: 12), saveButton],
+        children: [
+          adminButton,
+          const SizedBox(width: 12),
+          saveButton,
+          const SizedBox(width: 12),
+          adminPlaceholder ?? const SizedBox.shrink(),
+        ],
       );
     } else {
-      centerCluster = adminButton ?? saveButton ?? const SizedBox.shrink();
+      centerCluster = adminButton ?? saveButton;
     }
 
-    return Positioned(
-      bottom: 16,
-      left: 16,
-      right: 16,
-      child: Row(
-        children: [
-          const Spacer(),
-          centerCluster,
-          const Spacer(),
-          FloatingActionButton(
-            heroTag: 'fab_announcements',
-            onPressed: _handleAnnouncements,
-            tooltip: 'Pengumuman',
-            child: const Icon(Icons.campaign_outlined),
+    return Stack(
+      children: [
+        SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 120.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildUserProfileHeader(theme),
+              const Divider(height: 1, color: Colors.transparent),
+              _buildGeotagControlCard(theme),
+              const Divider(height: 1, color: Colors.transparent),
+              _buildPresenceDetailsCard(theme),
+            ],
           ),
-        ],
-      ),
+        ),
+
+        if (_tabController.index == 0)
+          _SubtleEntryAnimator(
+            duration: const Duration(milliseconds: 300),
+            child: Stack(
+              children: [
+                Positioned(
+                  bottom: 16,
+                  left: 0,
+                  right: 0,
+                  child: Align(
+                    alignment: Alignment.bottomCenter,
+                    child: centerCluster,
+                  ),
+                ),
+                Positioned(
+                  bottom: 16,
+                  right: 16,
+                  child: FloatingActionButton(
+                    heroTag: 'fab_announcements',
+                    onPressed: _handleAnnouncements,
+                    tooltip: 'Pengumuman',
+                    child: const Icon(Icons.campaign_outlined),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 
@@ -395,45 +444,47 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ],
           ),
         ),
-        Chip(
-          avatar: Icon(
-            Icons.circle,
-            size: 12,
-            color: _isActive
-                ? theme.extension<CustomColors>()?.success
-                : theme.colorScheme.error,
-          ),
-          label: Text(_isActive ? 'AKTIF' : 'NONAKTIF'),
-          labelStyle: theme.textTheme.labelLarge?.copyWith(
-            color: theme.colorScheme.onSecondaryContainer,
-          ),
-          backgroundColor: _isActive
-              ? theme.extension<CustomColors>()?.success?.withAlpha(50)
-              : theme.colorScheme.error.withAlpha(50),
-          side: BorderSide.none,
-        ),
       ],
     );
   }
 
   Widget _buildGeotagControlCard(ThemeData theme) {
-    return Card(
-      elevation: 2.0,
-      color: theme.colorScheme.surfaceContainerHighest,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: Icon(
-            Icons.my_location_rounded,
-            color: theme.colorScheme.primary,
-            size: 32,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16.0),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest.withAlpha(179),
+            borderRadius: BorderRadius.circular(16.0),
+            border: Border.all(
+              color: theme.colorScheme.onSurface.withAlpha(26),
+            ),
           ),
-          title: Text('Status Presensi', style: theme.textTheme.titleLarge),
-          subtitle: Text(_isActive ? 'Presensi diaktifkan' : 'Aktifkan untuk melapor'),
-          trailing: Switch(
-            value: _isActive,
-            onChanged: _toggleActive,
+          child: Row(
+            children: [
+              Icon(Icons.my_location_rounded, color: theme.colorScheme.primary, size: 28),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Status Presensi', style: theme.textTheme.titleLarge),
+                    const SizedBox(height: 2),
+                    Text(
+                      _isActive ? 'Presensi diaktifkan' : 'Aktifkan untuk melapor',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              Switch(
+                value: _isActive,
+                onChanged: _isFetchingLocation ? null : _toggleActive,
+              ),
+            ],
           ),
         ),
       ),
@@ -445,60 +496,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ? _selectedLocation
         : (_locationOptions.isNotEmpty ? _locationOptions[0] : null);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Card(
-          child: ListTile(
-            leading: Icon(
-              _user!['status'] == 1 ? Icons.check_circle_outline : Icons.highlight_off_outlined,
-              color: _user!['status'] == 1 ? theme.extension<CustomColors>()?.success : theme.colorScheme.error,
-              size: 28,
-            ),
-            title: const Text('Status Kehadiran'),
-            trailing: _updatingStatus
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.0))
-                : Switch(
-              value: _user!['status'] == 1,
-              onChanged: _updateStatus,
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Text('Lokasi Terdeteksi', style: theme.textTheme.titleMedium),
-        const SizedBox(height: 8),
-        _buildMapCard(theme),
-        const SizedBox(height: 16),
-        if (_isActive)
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  DropdownButtonFormField<String>(
-                    isExpanded: true,
-                    value: validSelectedLocation,
-                    items: _locationOptions.map((loc) => DropdownMenuItem<String>(value: loc, child: Text(loc, overflow: TextOverflow.ellipsis))).toList(),
-                    onChanged: (val) => setState(() => _selectedLocation = val),
-                    decoration: const InputDecoration(labelText: 'Pilih Lokasi Terdekat'),
-                    disabledHint: const Text('Tidak ada lokasi tersedia'),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _notesController,
-                    decoration: const InputDecoration(labelText: 'Catatan Tambahan', hintText: 'Mis: Sedang WFH atau dinas luar'),
-                    maxLines: 2,
-                    textInputAction: TextInputAction.done,
-                  ),
-                ],
-              ),
-            ),
-          ),
-      ],
-    );
-  }
+    final bool isInteractable = _isActive && !_isFetchingLocation;
+    final bool isEffectivelyAvailable = isInteractable && (_user!['status'] == 1);
+    final bool hasStoredNotes = _storedNotes != null && _storedNotes!.isNotEmpty && _storedNotes != '-';
 
-  Widget _buildMapCard(ThemeData theme) {
     Widget mapContent;
     if (_isFetchingLocation) {
       mapContent = const Center(child: CircularProgressIndicator());
@@ -518,6 +519,226 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ],
       );
     }
-    return Card(clipBehavior: Clip.antiAlias, margin: EdgeInsets.zero, child: SizedBox(height: 150, child: mapContent));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (_isActive)
+          _SubtleEntryAnimator(
+            duration: const Duration(milliseconds: 500),
+            child: IgnorePointer(
+              ignoring: !isInteractable,
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 250),
+                opacity: isInteractable ? 1.0 : 0.5,
+                child: Card(
+                  child: ListTile(
+                    leading: Icon(
+                      isEffectivelyAvailable ? Icons.check_circle_outline : Icons.highlight_off_outlined,
+                      color: isEffectivelyAvailable ? theme.extension<CustomColors>()?.success : theme.colorScheme.error,
+                      size: 28,
+                    ),
+                    title: const Text('Status'),
+                    subtitle: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.circle,
+                          size: 10,
+                          color: isEffectivelyAvailable
+                              ? theme.extension<CustomColors>()?.success
+                              : theme.colorScheme.error,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          isEffectivelyAvailable ? 'Available' : 'Unavailable',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                    trailing: _updatingStatus
+                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.0))
+                        : Switch(
+                      value: isEffectivelyAvailable,
+                      onChanged: isInteractable ? _updateStatus : null,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        const Divider(height: 1, color: Colors.transparent),
+        if (_isActive)
+          _SubtleEntryAnimator(
+            duration: const Duration(milliseconds: 500),
+            delay: const Duration(milliseconds: 100),
+            child: Card(
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 8, 0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text('Lokasi', style: theme.textTheme.titleMedium),
+                        IconButton(
+                          icon: const Icon(Icons.refresh_rounded),
+                          tooltip: 'Ambil Ulang Lokasi',
+                          onPressed: isInteractable ? _fetchLocationData : null,
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(
+                    height: 180,
+                    child: Stack(
+                      children: [
+                        mapContent,
+                        if (isInteractable)
+                          Positioned(
+                            top: 10,
+                            left: 12,
+                            right: 12,
+                            child: Material(
+                              elevation: 4,
+                              borderRadius: BorderRadius.circular(12),
+                              child: DropdownButtonFormField<String>(
+                                value: validSelectedLocation,
+                                items: _locationOptions.map((loc) => DropdownMenuItem<String>(value: loc, child: Text(loc, overflow: TextOverflow.ellipsis))).toList(),
+                                onChanged: (val) => setState(() => _selectedLocation = val),
+                                decoration: InputDecoration(
+                                  filled: true,
+                                  fillColor: theme.colorScheme.surface.withAlpha(240),
+                                  hintText: 'Pilih Lokasi Terdekat',
+                                  isDense: true,
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  Theme(
+                    data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                    child: ExpansionTile(
+                      enabled: isInteractable,
+                      leading: const Icon(Icons.note_alt_outlined),
+                      title: const Text('Catatan Tambahan'),
+                      subtitle: _notesController.text.isNotEmpty
+                          ? Text(
+                        _notesController.text,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall,
+                      )
+                          : null,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                          child: TextField(
+                            controller: _notesController,
+                            decoration: InputDecoration(
+                              hintText: 'Tulis catatan Anda di sini...',
+                              suffixIcon: hasStoredNotes
+                                  ? IconButton(
+                                icon: const Icon(Icons.history_rounded),
+                                tooltip: 'Gunakan catatan sebelumnya',
+                                onPressed: isInteractable
+                                    ? () {
+                                  setState(() {
+                                    _notesController.text = _storedNotes!;
+                                  });
+                                }
+                                    : null,
+                              )
+                                  : null,
+                            ),
+                            maxLines: 3,
+                            textInputAction: TextInputAction.done,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _SubtleEntryAnimator extends StatefulWidget {
+  final Widget child;
+  final Duration duration;
+  final Duration delay;
+
+  const _SubtleEntryAnimator({
+    required this.child,
+    this.duration = const Duration(milliseconds: 500),
+    this.delay = Duration.zero,
+  });
+
+  @override
+  State<_SubtleEntryAnimator> createState() => _SubtleEntryAnimatorState();
+}
+
+class _SubtleEntryAnimatorState extends State<_SubtleEntryAnimator> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _opacity;
+  late Animation<Offset> _slide;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: widget.duration,
+    );
+
+    _opacity = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
+      ),
+    );
+
+    _slide = Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.0, 1.0, curve: Curves.easeOut),
+      ),
+    );
+
+    Future.delayed(widget.delay, () {
+      if (mounted) {
+        _controller.forward();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _opacity,
+      child: SlideTransition(
+        position: _slide,
+        child: widget.child,
+      ),
+    );
   }
 }
