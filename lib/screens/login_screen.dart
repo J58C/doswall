@@ -163,7 +163,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                             },
                             validator: (value) {
                               if (value == null || value.isEmpty) return 'Email tidak boleh kosong';
-                              final emailRegex = RegExp(r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+");
+                              final emailRegex = RegExp(r"^[a-zA-Z0-9.a-zA-Z0-9!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+");
                               if (!emailRegex.hasMatch(value)) return 'Format email tidak valid';
                               if (_loginError != null) {
                                 return _loginError;
