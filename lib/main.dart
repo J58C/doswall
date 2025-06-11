@@ -12,6 +12,7 @@ import 'screens/forgot_password_screen.dart';
 import 'screens/announcements_screen.dart';
 import 'screens/change_password_screen.dart';
 import 'screens/add_announcement_screen.dart';
+import 'package:doswall/screens/profile_screen.dart';
 import 'screens/edit_announcement_screen.dart';
 import 'services/user_storage.dart';
 
@@ -59,6 +60,8 @@ class MyApp extends StatelessWidget {
                 return MaterialPageRoute(builder: (_) => const AnnouncementsScreen());
               case '/add-announcement':
                 return MaterialPageRoute(builder: (_) => const AddAnnouncementScreen());
+              case '/profile':
+                return MaterialPageRoute(builder: (_) => const ProfileScreen());
               case '/edit-announcement':
                 if (settings.arguments is Announcement) {
                   final announcement = settings.arguments as Announcement;

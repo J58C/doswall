@@ -12,6 +12,9 @@ jobs:
   build-apk:
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: write
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -29,7 +32,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.32.1'
+          flutter-version: '3.22.1'
           channel: 'stable'
           cache: true
 
@@ -53,3 +56,15 @@ jobs:
         with:
           name: release-apk-v${{ steps.get_version.outputs.version_name }}-${{ github.run_number }}
           path: build/app/outputs/flutter-apk/app-v${{ steps.get_version.outputs.version_name }}-${{ github.run_number }}.apk
+
+      - name: Create GitHub Release
+        if: github.ref == 'refs/heads/master'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.get_version.outputs.version_name }}-${{ github.run_number }}
+          name: Release v${{ steps.get_version.outputs.version_name }} (Build ${{ github.run_number }})
+          body: |
+            Rilis otomatis dari build #${{ github.run_number }}.
+            Commit: ${{ github.sha }}
+          files: build/app/outputs/flutter-apk/app-v${{ steps.get_version.outputs.version_name }}-${{ github.run_number }}.apk
+          prerelease: true

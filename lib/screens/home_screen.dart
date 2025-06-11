@@ -9,7 +9,6 @@ import '../services/geotag_service.dart';
 import '../models/geotag_response.dart';
 import '../services/update_profile_service.dart';
 import '../models/update_profile_response.dart';
-import 'login_screen.dart';
 import '../providers/theme_notifier.dart';
 import '../theme/custom_colors.dart';
 
@@ -20,7 +19,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen> {
   Map<String, dynamic>? _user;
   bool _isActive = false;
   bool _isFetchingLocation = false;
@@ -29,28 +28,24 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   String? _selectedLocation;
   LatLng? _currentLatLng;
   final TextEditingController _notesController = TextEditingController();
-  late TabController _tabController;
   String? _storedNotes;
+  final FocusNode _notesFocusNode = FocusNode();
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-    _tabController.addListener(() {
-      if (mounted) setState(() {});
-    });
     _loadUser();
     _notesController.addListener(() {
-      if (mounted) {
-        setState(() {});
-      }
+      if (mounted) setState(() {});
     });
   }
 
   @override
   void dispose() {
     _notesController.dispose();
-    _tabController.dispose();
+    _notesFocusNode.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -70,6 +65,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     });
   }
 
+  // --- PERUBAHAN UTAMA ADA DI METHOD INI ---
   void _toggleActive(bool value) {
     if (value) {
       setState(() => _isActive = true);
@@ -77,26 +73,46 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     } else {
       _showConfirmationDialog(
         title: 'Nonaktifkan Presensi?',
-        content: 'Data lokasi dan kehadiran Anda akan dihapus untuk sesi ini.',
-        onConfirm: () {
+        content: 'Status Anda juga akan diubah menjadi "Unavailable". Lanjutkan?',
+        onConfirm: () async {
+          final messenger = ScaffoldMessenger.of(context);
+          final theme = Theme.of(context);
+
+          final updatedUser = Map<String, dynamic>.from(_user!)
+            ..['geotag'] = '-'
+            ..['status'] = 0
+            ..remove('lat')
+            ..remove('long');
+
+          await UserStorage.saveUser(updatedUser);
+
+          if (!mounted) return;
           setState(() {
             _isActive = false;
             _currentLatLng = null;
             _locationOptions = [];
             _selectedLocation = null;
+            _user = updatedUser;
           });
-          final updatedUser = Map<String, dynamic>.from(_user!)
-            ..['geotag'] = '-'
-            ..remove('lat')
-            ..remove('long');
-          UserStorage.saveUser(updatedUser);
-          setState(() => _user = updatedUser);
+
+          final result = await UpdateProfileService.updateUserProfile();
+          if (!mounted) return;
+
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text(result.success ? '✅ Presensi dinonaktifkan & profil diperbarui.' : '❌ Gagal memperbarui profil.'),
+              backgroundColor: result.success
+                  ? theme.extension<CustomColors>()?.success
+                  : theme.colorScheme.errorContainer,
+            ),
+          );
         },
       );
     }
   }
 
   Future<void> _fetchLocationData() async {
+    final messenger = ScaffoldMessenger.of(context);
     setState(() => _isFetchingLocation = true);
     try {
       final GeotagResponse result = await GeotagService.fetchGeotagData();
@@ -115,16 +131,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           _user = updatedUser;
         });
       } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.message ?? '❌ Gagal mendapatkan lokasi.')));
-          setState(() => _isActive = false);
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('❌ Terjadi error: ${e.toString()}')));
+        messenger.showSnackBar(SnackBar(content: Text(result.message ?? '❌ Gagal mendapatkan lokasi.')));
         setState(() => _isActive = false);
       }
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('❌ Terjadi error: ${e.toString()}')));
+      setState(() => _isActive = false);
     } finally {
       if (mounted) setState(() => _isFetchingLocation = false);
     }
@@ -142,6 +154,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   void _saveData() async {
     if (_user == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final theme = Theme.of(context);
+
     final currentNotes = _notesController.text.trim();
     final currentSelectedLocation = _selectedLocation ?? (_isActive && _locationOptions.isNotEmpty ? _locationOptions[0] : '-');
     final updatedUser = Map<String, dynamic>.from(_user!)..['notes'] = currentNotes.isEmpty ? '-' : currentNotes..['geotag'] = currentSelectedLocation;
@@ -152,31 +167,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
     await UserStorage.saveUser(updatedUser);
     if (!mounted) return;
-    setState(() => _user = updatedUser);
+
     final UpdateProfileResponse result = await UpdateProfileService.updateUserProfile();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    messenger.showSnackBar(
       SnackBar(
         content: Text(result.success ? (result.message ?? '✅ Profil berhasil diperbarui.') : (result.message ?? '❌ Gagal memperbarui profil.')),
         backgroundColor: result.success
-            ? Theme.of(context).extension<CustomColors>()?.success
-            : Theme.of(context).colorScheme.errorContainer,
+            ? theme.extension<CustomColors>()?.success
+            : theme.colorScheme.errorContainer,
       ),
     );
   }
 
-  void _logout() {
-    _showConfirmationDialog(
-        title: 'Konfirmasi Keluar',
-        content: 'Apakah Anda yakin ingin keluar dari aplikasi?',
-        onConfirm: () async {
-          await UserStorage.clearUser();
-          if (!mounted) return;
-          Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const LoginScreen()), (Route<dynamic> route) => false);
-        });
-  }
-
-  void _handleChangePassword() => Navigator.pushNamed(context, '/change-password');
   void _handleAdminAction() => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Navigasi ke Panel Admin...')));
   void _handleAnnouncements() => Navigator.pushNamed(context, '/announcements');
 
@@ -236,22 +239,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             tooltip: isEffectivelyDark ? 'Mode Terang' : 'Mode Gelap',
             onPressed: () => themeNotifier.toggleTheme(isEffectivelyDark ? Brightness.dark : Brightness.light),
           ),
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(text: 'Presensi', icon: Icon(Icons.location_on_outlined)),
-            Tab(text: 'Profil', icon: Icon(Icons.person_outline)),
-          ],
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildPresenceTab(context),
-          _buildProfileTab(context),
+          IconButton(
+            icon: const Icon(Icons.person_outline),
+            tooltip: 'Buka Profil',
+            onPressed: () => Navigator.pushNamed(context, '/profile'),
+          ),
         ],
       ),
+      body: _buildPresenceTab(context),
     );
   }
 
@@ -329,95 +324,42 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return Stack(
       children: [
         SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 120.0),
+          controller: _scrollController,
+          padding: const EdgeInsets.fromLTRB(20.0, 20.0, 20.0, 120.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _buildUserProfileHeader(theme),
-              const Divider(height: 1, color: Colors.transparent),
+              const SizedBox(height: 24.0),
               _buildGeotagControlCard(theme),
-              const Divider(height: 1, color: Colors.transparent),
+              const SizedBox(height: 16.0),
               _buildPresenceDetailsCard(theme),
+              const SizedBox(height: 250),
             ],
           ),
         ),
-
-        if (_tabController.index == 0)
-          _SubtleEntryAnimator(
-            duration: const Duration(milliseconds: 300),
-            child: Stack(
-              children: [
-                Positioned(
-                  bottom: 16,
-                  left: 0,
-                  right: 0,
-                  child: Align(
-                    alignment: Alignment.bottomCenter,
-                    child: centerCluster,
-                  ),
-                ),
-                Positioned(
-                  bottom: 16,
-                  right: 16,
-                  child: FloatingActionButton(
-                    heroTag: 'fab_announcements',
-                    onPressed: _handleAnnouncements,
-                    tooltip: 'Pengumuman',
-                    child: const Icon(Icons.campaign_outlined),
-                  ),
-                ),
-              ],
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildProfileTab(BuildContext context) {
-    final theme = Theme.of(context);
-    return ListView(
-      padding: const EdgeInsets.all(16.0),
-      children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              children: [
-                CircleAvatar(
-                  radius: 40,
-                  backgroundColor: theme.colorScheme.primaryContainer,
-                  child: Icon(Icons.person_outline, size: 48, color: theme.colorScheme.onPrimaryContainer),
-                ),
-                const SizedBox(height: 16),
-                Text(_user!['name'] ?? 'Pengguna', style: theme.textTheme.headlineSmall, textAlign: TextAlign.center),
-                const SizedBox(height: 4),
-                Text(_user!['email'] ?? '-', style: theme.textTheme.bodyMedium),
-                const SizedBox(height: 8),
-                Chip(
-                  label: Text(_user!['role']?.toString().toUpperCase() ?? 'USER'),
-                  backgroundColor: theme.colorScheme.primary.withAlpha(50),
-                  labelStyle: TextStyle(color: theme.colorScheme.primary, fontWeight: FontWeight.bold),
-                  side: BorderSide.none,
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Card(
-          child: Column(
+        _SubtleEntryAnimator(
+          duration: const Duration(milliseconds: 300),
+          child: Stack(
             children: [
-              ListTile(
-                leading: const Icon(Icons.lock_outline),
-                title: const Text('Ubah Password'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: _handleChangePassword,
+              Positioned(
+                bottom: 16,
+                left: 0,
+                right: 0,
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: centerCluster,
+                ),
               ),
-              const Divider(height: 1, indent: 16, endIndent: 16),
-              ListTile(
-                leading: Icon(Icons.exit_to_app_rounded, color: theme.colorScheme.error),
-                title: Text('Keluar', style: TextStyle(color: theme.colorScheme.error)),
-                onTap: _logout,
+              Positioned(
+                bottom: 16,
+                right: 16,
+                child: FloatingActionButton(
+                  heroTag: 'fab_announcements',
+                  onPressed: _handleAnnouncements,
+                  tooltip: 'Pengumuman',
+                  child: const Icon(Icons.campaign_outlined),
+                ),
               ),
             ],
           ),
@@ -435,6 +377,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Selamat Datang,', style: theme.textTheme.bodyMedium),
+              const SizedBox(height: 4.0),
               Text(
                 _user!['name'] as String? ?? 'Pengguna',
                 style: theme.textTheme.headlineMedium,
@@ -454,7 +397,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           decoration: BoxDecoration(
             color: theme.colorScheme.surfaceContainerHighest.withAlpha(179),
             borderRadius: BorderRadius.circular(16.0),
@@ -465,13 +408,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           child: Row(
             children: [
               Icon(Icons.my_location_rounded, color: theme.colorScheme.primary, size: 28),
-              const SizedBox(width: 12),
+              const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Status Presensi', style: theme.textTheme.titleLarge),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 4),
                     Text(
                       _isActive ? 'Presensi diaktifkan' : 'Aktifkan untuk melapor',
                       style: theme.textTheme.bodySmall,
@@ -533,6 +476,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 opacity: isInteractable ? 1.0 : 0.5,
                 child: Card(
                   child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                     leading: Icon(
                       isEffectivelyAvailable ? Icons.check_circle_outline : Icons.highlight_off_outlined,
                       color: isEffectivelyAvailable ? theme.extension<CustomColors>()?.success : theme.colorScheme.error,
@@ -567,7 +511,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               ),
             ),
           ),
-        const Divider(height: 1, color: Colors.transparent),
+        const SizedBox(height: 16.0),
         if (_isActive)
           _SubtleEntryAnimator(
             duration: const Duration(milliseconds: 500),
@@ -577,7 +521,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               child: Column(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 8, 0),
+                    padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       crossAxisAlignment: CrossAxisAlignment.center,
@@ -628,6 +572,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   Theme(
                     data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
                     child: ExpansionTile(
+                      onExpansionChanged: (isExpanding) {
+                        if (isExpanding) {
+                          _notesFocusNode.requestFocus();
+                        } else {
+                          _notesFocusNode.unfocus();
+                        }
+                      },
                       enabled: isInteractable,
                       leading: const Icon(Icons.note_alt_outlined),
                       title: const Text('Catatan Tambahan'),
@@ -641,8 +592,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           : null,
                       children: [
                         Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
                           child: TextField(
+                            focusNode: _notesFocusNode,
                             controller: _notesController,
                             decoration: InputDecoration(
                               hintText: 'Tulis catatan Anda di sini...',

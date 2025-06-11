@@ -35,9 +35,6 @@ class UpdateProfileService {
         url,
         headers: {
           'Content-Type': 'application/json',
-          // Jika API Anda juga memerlukan token di header, biarkan ini.
-          // Jika token di body sudah cukup, header Authorization ini bisa jadi tidak perlu.
-          // Verifikasi dengan dokumentasi API Anda.
           'Authorization': 'Bearer $token',
         },
         body: jsonEncode(payload),
