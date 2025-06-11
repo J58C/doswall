@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - master
-      - develop
 
   workflow_dispatch:
 
@@ -63,8 +62,6 @@ jobs:
         with:
           tag_name: v${{ steps.get_version.outputs.version_name }}-${{ github.run_number }}
           name: Release v${{ steps.get_version.outputs.version_name }} (Build ${{ github.run_number }})
-          body: |
-            Rilis otomatis dari build #${{ github.run_number }}.
-            Commit: ${{ github.sha }}
+          generate_release_notes: true
           files: build/app/outputs/flutter-apk/app-v${{ steps.get_version.outputs.version_name }}-${{ github.run_number }}.apk
           prerelease: true

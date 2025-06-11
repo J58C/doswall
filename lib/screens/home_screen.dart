@@ -4,6 +4,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_tile_provider.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_background_service/flutter_background_service.dart'; // <-- 1. IMPORT SERVICE
 import '../services/user_storage.dart';
 import '../services/geotag_service.dart';
 import '../models/geotag_response.dart';
@@ -32,9 +33,19 @@ class _HomeScreenState extends State<HomeScreen> {
   final FocusNode _notesFocusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
 
+  final service = FlutterBackgroundService();
+
   @override
   void initState() {
     super.initState();
+    service.isRunning().then((isRunning) {
+      if(mounted) {
+        setState(() {
+          _isActive = isRunning;
+        });
+      }
+    });
+
     _loadUser();
     _notesController.addListener(() {
       if (mounted) setState(() {});
@@ -52,29 +63,29 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadUser() async {
     final user = await UserStorage.getUser();
     if (!mounted) return;
+    final isServiceRunning = await service.isRunning();
     setState(() {
       _user = user;
-      bool shouldBeActive = user['lat'] != null && user['long'] != null;
-      if (shouldBeActive) {
-        _isActive = true;
+      _isActive = isServiceRunning;
+      if (_isActive) {
         _fetchLocationData();
-      } else {
-        _isActive = false;
       }
       _storedNotes = user['notes'] as String?;
     });
   }
 
-  // --- PERUBAHAN UTAMA ADA DI METHOD INI ---
   void _toggleActive(bool value) {
     if (value) {
       setState(() => _isActive = true);
+      service.startService();
       _fetchLocationData();
     } else {
       _showConfirmationDialog(
         title: 'Nonaktifkan Presensi?',
-        content: 'Status Anda juga akan diubah menjadi "Unavailable". Lanjutkan?',
+        content: 'Layanan di latar belakang akan dihentikan dan status Anda menjadi "Unavailable". Lanjutkan?',
         onConfirm: () async {
+          service.invoke("stopService");
+
           final messenger = ScaffoldMessenger.of(context);
           final theme = Theme.of(context);
 
@@ -197,6 +208,7 @@ class _HomeScreenState extends State<HomeScreen> {
     ),
     );
   }
+
 
   @override
   Widget build(BuildContext context) {
