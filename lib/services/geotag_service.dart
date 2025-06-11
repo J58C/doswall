@@ -22,10 +22,13 @@ class GeotagService {
         return GeotagResponse(success: false, message: 'Izin lokasi ditolak.');
       }
 
-      // ignore: deprecated_member_use_from_same_package
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+      final LocationSettings locationSettings = LocationSettings(
+        accuracy: LocationAccuracy.high,
       );
+
+      Position position = await Geolocator.getCurrentPosition(
+        locationSettings: locationSettings,
+      ).timeout(const Duration(seconds: 15));
 
       final double lat = position.latitude;
       final double long = position.longitude;
