@@ -1,4 +1,4 @@
-name: Build Flutter (Android APK)
+name: Build Flutter (Android APK & iOS Simulator)
 
 on:
   push:
@@ -8,53 +8,68 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-apk:
-    runs-on: ubuntu-latest
-
-    permissions:
-      contents: write
-
+  build-ios-simulator:
+    runs-on: macos-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Get project version
-        id: get_version
-        run: echo "version_name=$(grep 'version:' pubspec.yaml | cut -d ' ' -f 2 | cut -d '+' -f 1)" >> $GITHUB_OUTPUT
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.32.1'
           channel: 'stable'
           cache: true
-
       - name: Install dependencies
         run: flutter pub get
+      - name: Build iOS Simulator
+        run: flutter build ios --simulator --no-codesign
+      - name: Compress Simulator App
+        run: |
+          cd build/ios/iphonesimulator
+          zip -r ../../../simulator-app.zip .
+      - name: Upload iOS Simulator Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: simulator-app
+          path: simulator-app.zip
 
+  build-android:
+    needs: build-ios-simulator
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Get project version
+        id: get_version
+        run: echo "version_name=$(grep 'version:' pubspec.yaml | cut -d ' ' -f 2 | cut -d '+' -f 1)" >> $GITHUB_OUTPUT
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.32.1'
+          channel: 'stable'
+          cache: true
+      - name: Install dependencies
+        run: flutter pub get
       - name: Analyze project
         run: flutter analyze
-
       - name: Run tests
         run: flutter test
-
       - name: Build Android APK
         run: flutter build apk --release --build-number=${{ github.run_number }}
-
       - name: Rename APK file
         run: mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/app-v${{ steps.get_version.outputs.version_name }}-${{ github.run_number }}.apk
 
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+      - name: Download iOS Simulator Artifact
+        uses: actions/download-artifact@v4
         with:
-          name: release-apk-v${{ steps.get_version.outputs.version_name }}-${{ github.run_number }}
-          path: build/app/outputs/flutter-apk/app-v${{ steps.get_version.outputs.version_name }}-${{ github.run_number }}.apk
+          name: simulator-app
 
       - name: Create GitHub Release
         if: github.ref == 'refs/heads/master'
@@ -63,5 +78,7 @@ jobs:
           tag_name: v${{ steps.get_version.outputs.version_name }}-${{ github.run_number }}
           name: Release v${{ steps.get_version.outputs.version_name }} (Build ${{ github.run_number }})
           generate_release_notes: true
-          files: build/app/outputs/flutter-apk/app-v${{ steps.get_version.outputs.version_name }}-${{ github.run_number }}.apk
+          files: |
+            build/app/outputs/flutter-apk/app-v${{ steps.get_version.outputs.version_name }}-${{ github.run_number }}.apk
+            simulator-app.zip
           prerelease: true

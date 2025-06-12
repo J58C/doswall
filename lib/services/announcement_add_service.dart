@@ -22,7 +22,6 @@ class AnnouncementAddService {
       'title': title,
       'content': content,
       '_id': userId,
-      'user_id': userId,
       'token': token,
       'appkey': ApiConfig.appKey,
     };

@@ -20,7 +20,7 @@ class UpdateProfileService {
         return UpdateProfileResponse(success: false, message: 'User ID atau Token tidak ditemukan.');
       }
 
-      final url = Uri.parse('${ApiConfig.updateProfileUrl}/$userId');
+      final url = Uri.parse(ApiConfig.updateProfileUrl);
 
       final Map<String, dynamic> payload = {
         'geotag': geotag,
@@ -35,7 +35,6 @@ class UpdateProfileService {
         url,
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
         },
         body: jsonEncode(payload),
       );
