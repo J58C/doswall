@@ -4,7 +4,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_tile_provider.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_background_service/flutter_background_service.dart'; // <-- 1. IMPORT SERVICE
+import 'package:flutter_background_service/flutter_background_service.dart';
 import '../services/user_storage.dart';
 import '../services/geotag_service.dart';
 import '../models/geotag_response.dart';
@@ -20,11 +20,12 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Map<String, dynamic>? _user;
   bool _isActive = false;
   bool _isFetchingLocation = false;
   bool _updatingStatus = false;
+  bool _isSaving = false;
   List<String> _locationOptions = [];
   String? _selectedLocation;
   LatLng? _currentLatLng;
@@ -32,20 +33,13 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _storedNotes;
   final FocusNode _notesFocusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
-
   final service = FlutterBackgroundService();
+  final ExpansibleController _notesExpansionController = ExpansibleController();
 
   @override
   void initState() {
     super.initState();
-    service.isRunning().then((isRunning) {
-      if(mounted) {
-        setState(() {
-          _isActive = isRunning;
-        });
-      }
-    });
-
+    WidgetsBinding.instance.addObserver(this);
     _loadUser();
     _notesController.addListener(() {
       if (mounted) setState(() {});
@@ -53,7 +47,16 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      _loadUser();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _notesController.dispose();
     _notesFocusNode.dispose();
     _scrollController.dispose();
@@ -63,14 +66,33 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadUser() async {
     final user = await UserStorage.getUser();
     if (!mounted) return;
+
     final isServiceRunning = await service.isRunning();
+
     setState(() {
       _user = user;
       _isActive = isServiceRunning;
+
       if (_isActive) {
-        _fetchLocationData();
+        final lat = user['lat'] as double?;
+        final long = user['long'] as double?;
+        if (lat != null && long != null) {
+          _currentLatLng = LatLng(lat, long);
+        }
+
+        final options = user['location_options'] as List?;
+        if (options != null) {
+          _locationOptions = List<String>.from(options);
+        }
+        _selectedLocation = user['geotag'] as String?;
+
+        _storedNotes = user['notes'] as String?;
+        if (_storedNotes != null && _storedNotes != '-') {
+          _notesController.text = _storedNotes!;
+        }
+      } else {
+        _storedNotes = user['notes'] as String?;
       }
-      _storedNotes = user['notes'] as String?;
     });
   }
 
@@ -93,7 +115,8 @@ class _HomeScreenState extends State<HomeScreen> {
             ..['geotag'] = '-'
             ..['status'] = 0
             ..remove('lat')
-            ..remove('long');
+            ..remove('long')
+            ..remove('location_options');
 
           await UserStorage.saveUser(updatedUser);
 
@@ -130,15 +153,19 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
       if (result.success && result.lat != null && result.long != null && (result.locationLists?.isNotEmpty ?? false)) {
         final uniqueLocations = result.locationLists!.toSet().toList();
+
+        final updatedUser = Map<String, dynamic>.from(_user!)
+          ..['geotag'] = uniqueLocations[0]
+          ..['lat'] = result.lat
+          ..['long'] = result.long
+          ..['location_options'] = uniqueLocations;
+
+        await UserStorage.saveUser(updatedUser);
+
         setState(() {
           _currentLatLng = LatLng(result.lat!, result.long!);
           _locationOptions = uniqueLocations;
           _selectedLocation = uniqueLocations[0];
-          final updatedUser = Map<String, dynamic>.from(_user!)
-            ..['geotag'] = _selectedLocation
-            ..['lat'] = result.lat
-            ..['long'] = result.long;
-          UserStorage.saveUser(updatedUser);
           _user = updatedUser;
         });
       } else {
@@ -164,31 +191,55 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _saveData() async {
-    if (_user == null) return;
-    final messenger = ScaffoldMessenger.of(context);
-    final theme = Theme.of(context);
+    FocusScope.of(context).unfocus();
+    _notesExpansionController.collapse();
 
-    final currentNotes = _notesController.text.trim();
-    final currentSelectedLocation = _selectedLocation ?? (_isActive && _locationOptions.isNotEmpty ? _locationOptions[0] : '-');
-    final updatedUser = Map<String, dynamic>.from(_user!)..['notes'] = currentNotes.isEmpty ? '-' : currentNotes..['geotag'] = currentSelectedLocation;
-    if (_isActive && _currentLatLng != null) {
-      updatedUser['lat'] = _currentLatLng!.latitude; updatedUser['long'] = _currentLatLng!.longitude;
-    } else {
-      updatedUser.remove('lat'); updatedUser.remove('long');
+    setState(() => _isSaving = true);
+
+    try {
+      if (_user == null) return;
+
+      final messenger = ScaffoldMessenger.of(context);
+      final theme = Theme.of(context);
+
+      final currentNotes = _notesController.text.trim();
+      final currentSelectedLocation = _selectedLocation ?? (_isActive && _locationOptions.isNotEmpty ? _locationOptions[0] : '-');
+      final updatedUser = Map<String, dynamic>.from(_user!)
+        ..['notes'] = currentNotes.isEmpty ? '-' : currentNotes
+        ..['geotag'] = currentSelectedLocation;
+
+      if (_isActive && _currentLatLng != null) {
+        updatedUser['lat'] = _currentLatLng!.latitude;
+        updatedUser['long'] = _currentLatLng!.longitude;
+      } else {
+        updatedUser.remove('lat');
+        updatedUser.remove('long');
+      }
+
+      await UserStorage.saveUser(updatedUser);
+      if (!mounted) return;
+
+      final UpdateProfileResponse result = await UpdateProfileService.updateUserProfile();
+
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(result.success ? (result.message ?? '✅ Profil berhasil diperbarui.') : (result.message ?? '❌ Gagal memperbarui profil.')),
+          backgroundColor: result.success
+              ? theme.extension<CustomColors>()?.success
+              : theme.colorScheme.errorContainer,
+        ),
+      );
+
+      if (result.success) {
+        await _loadUser();
+      }
+
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
     }
-    await UserStorage.saveUser(updatedUser);
-    if (!mounted) return;
-
-    final UpdateProfileResponse result = await UpdateProfileService.updateUserProfile();
-    if (!mounted) return;
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(result.success ? (result.message ?? '✅ Profil berhasil diperbarui.') : (result.message ?? '❌ Gagal memperbarui profil.')),
-        backgroundColor: result.success
-            ? theme.extension<CustomColors>()?.success
-            : theme.colorScheme.errorContainer,
-      ),
-    );
   }
 
   void _handleAdminAction() => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Navigasi ke Panel Admin...')));
@@ -208,7 +259,6 @@ class _HomeScreenState extends State<HomeScreen> {
     ),
     );
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -272,9 +322,9 @@ class _HomeScreenState extends State<HomeScreen> {
       scale: _isActive ? 1.0 : 0.0,
       child: FloatingActionButton.extended(
         heroTag: 'fab_save',
-        onPressed: _isFetchingLocation ? null : _saveData,
-        label: const Text('Simpan'),
-        icon: _isFetchingLocation
+        onPressed: _isFetchingLocation || _isSaving ? null : _saveData,
+        label: Text(_isSaving ? 'Menyimpan...' : 'Simpan'),
+        icon: _isFetchingLocation || _isSaving
             ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
             : const Icon(Icons.save_alt_outlined),
       ),
@@ -584,6 +634,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   Theme(
                     data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
                     child: ExpansionTile(
+                      controller: _notesExpansionController,
                       onExpansionChanged: (isExpanding) {
                         if (isExpanding) {
                           _notesFocusNode.requestFocus();

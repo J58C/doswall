@@ -27,7 +27,6 @@ void onStart(ServiceInstance service) {
   });
 
   Timer.periodic(const Duration(minutes: 1), (timer) {
-    // 2. GANTI print MENJADI debugPrint
     debugPrint('Service Presensi Aktif...');
   });
 }
