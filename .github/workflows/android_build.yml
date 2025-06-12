@@ -26,6 +26,7 @@ jobs:
       - name: Compress Simulator App
         run: |
           cd build/ios/iphonesimulator
+          # Zip direktori Runner.app menjadi Runner.app.zip
           zip -r ../../../Runner.app.zip Runner.app
       - name: Upload iOS Simulator Artifact
         uses: actions/upload-artifact@v4
@@ -53,11 +54,25 @@ jobs:
       - name: Install CocoaPods dependencies
         run: cd ios && pod install --repo-update
 
-      - name: Build unsigned iOS IPA for Release
-        run: flutter build ipa --release --no-codesign --build-number=${{ github.run_number }}
+      - name: Build unsigned iOS Archive
+        run: flutter build archive --release --no-codesign --build-number=${{ github.run_number }}
+
+      - name: Export unsigned IPA from Archive
+        run: |
+          xcodebuild -archivePath build/ios/archive/Runner.xcarchive \
+                     -exportArchive \
+                     -exportPath build/ios/ipa \
+                     -allowProvisioningUpdates \
+                     -exportOptionsPlist ios/ExportOptions.plist
 
       - name: Rename IPA file
-        run: mv build/ios/ipa/*.ipa "build/ios/ipa/app-v${{ steps.get_version.outputs.version_name }}-${{ github.run_number }}.ipa"
+        run: |
+          IPA_FILE=$(find build/ios/ipa -name "*.ipa" | head -n 1)
+          if [ -z "$IPA_FILE" ]; then
+            echo "::error::File .ipa tidak ditemukan di dalam build/ios/ipa/"
+            exit 1
+          fi
+          mv "$IPA_FILE" "build/ios/ipa/app-v${{ steps.get_version.outputs.version_name }}-${{ github.run_number }}.ipa"
 
       - name: Upload iOS IPA Artifact
         uses: actions/upload-artifact@v4
