@@ -55,7 +55,7 @@ jobs:
         run: cd ios && pod install --repo-update
 
       - name: Build unsigned iOS Archive
-        run: flutter build archive --release --no-codesign --build-number=${{ github.run_number }}
+        run: flutter build archive --no-codesign --build-number=${{ github.run_number }}
 
       - name: Export unsigned IPA from Archive
         run: |
