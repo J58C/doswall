@@ -26,7 +26,6 @@ jobs:
       - name: Compress Simulator App
         run: |
           cd build/ios/iphonesimulator
-          # Zip direktori Runner.app menjadi Runner.app.zip
           zip -r ../../../Runner.app.zip Runner.app
       - name: Upload iOS Simulator Artifact
         uses: actions/upload-artifact@v4
@@ -58,7 +57,7 @@ jobs:
         run: flutter build ipa --release --no-codesign --build-number=${{ github.run_number }}
 
       - name: Rename IPA file
-        run: mv "build/ios/ipa/Doswall.ipa" "build/ios/ipa/app-v${{ steps.get_version.outputs.version_name }}-${{ github.run_number }}.ipa"
+        run: mv build/ios/ipa/*.ipa "build/ios/ipa/app-v${{ steps.get_version.outputs.version_name }}-${{ github.run_number }}.ipa"
 
       - name: Upload iOS IPA Artifact
         uses: actions/upload-artifact@v4
