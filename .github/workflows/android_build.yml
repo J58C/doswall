@@ -1,4 +1,4 @@
-name: Build Flutter (Android APK & iOS)
+name: Build Flutter (Android APK & iOS Simulator)
 
 on:
   push:
@@ -34,54 +34,8 @@ jobs:
           name: simulator-app
           path: Runner.app.zip
 
-  build-ios-release:
-    runs-on: macos-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Get project version
-        id: get_version
-        run: echo "version_name=$(grep 'version:' pubspec.yaml | cut -d ' ' -f 2 | cut -d '+' -f 1)" >> $GITHUB_OUTPUT
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.32.3'
-          channel: 'stable'
-          cache: true
-
-      - name: Install dependencies
-        run: flutter pub get
-      - name: Install CocoaPods dependencies
-        run: cd ios && pod install --repo-update
-
-      - name: Build unsigned iOS Archive
-        run: flutter build archive --no-codesign --build-number=${{ github.run_number }}
-
-      - name: Export unsigned IPA from Archive
-        run: |
-          xcodebuild -archivePath build/ios/archive/Runner.xcarchive \
-                     -exportArchive \
-                     -exportPath build/ios/ipa \
-                     -allowProvisioningUpdates \
-                     -exportOptionsPlist ios/ExportOptions.plist
-
-      - name: Rename IPA file
-        run: |
-          IPA_FILE=$(find build/ios/ipa -name "*.ipa" | head -n 1)
-          if [ -z "$IPA_FILE" ]; then
-            echo "::error::File .ipa tidak ditemukan di dalam build/ios/ipa/"
-            exit 1
-          fi
-          mv "$IPA_FILE" "build/ios/ipa/app-v${{ steps.get_version.outputs.version_name }}-${{ github.run_number }}.ipa"
-
-      - name: Upload iOS IPA Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-ipa
-          path: "build/ios/ipa/app-v${{ steps.get_version.outputs.version_name }}-${{ github.run_number }}.ipa"
-
   build-android-and-release:
-    needs: [build-ios-simulator, build-ios-release]
+    needs: build-ios-simulator
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -117,10 +71,6 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: simulator-app
-      - name: Download iOS IPA Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: release-ipa
 
       - name: Create GitHub Release
         if: github.ref == 'refs/heads/master'
@@ -133,11 +83,9 @@ jobs:
             ## Rilis Pratinjau
             
             - **APK**: File untuk instalasi di perangkat Android.
-            - **IPA**: File untuk distribusi di perangkat iOS (perlu di-sign ulang).
             - **Runner.app.zip**: File untuk testing di Simulator iOS di Mac.
 
           files: |
             build/app/outputs/flutter-apk/app-v${{ steps.get_version.outputs.version_name }}-${{ github.run_number }}.apk
-            app-v${{ steps.get_version.outputs.version_name }}-${{ github.run_number }}.ipa
             Runner.app.zip
           prerelease: true
