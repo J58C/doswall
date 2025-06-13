@@ -34,11 +34,24 @@ class AnnouncementFetchService {
       );
 
       if (response.statusCode == 200) {
-        List<dynamic> body = jsonDecode(response.body);
-        List<Announcement> announcements = body
-            .map((dynamic item) => Announcement.fromJson(item))
-            .toList();
-        return announcements;
+        final responseBody = jsonDecode(response.body);
+
+        if (responseBody is Map<String, dynamic> && responseBody['success'] == true) {
+          final dataList = responseBody['data'] as List?;
+          if (dataList != null) {
+            List<Announcement> announcements = dataList
+                .map((dynamic item) => Announcement.fromJson(item))
+                .toList();
+            return announcements;
+          } else {
+            return [];
+          }
+        } else {
+          String message = responseBody is Map<String, dynamic>
+              ? responseBody['message'] as String? ?? 'Gagal memuat data.'
+              : 'Gagal memuat data.';
+          throw Exception('Failed to load announcements: $message');
+        }
       } else {
         throw Exception(
             'Failed to load announcements. Status code: ${response.statusCode}');

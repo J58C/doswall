@@ -22,6 +22,7 @@ class AnnouncementAddService {
       'title': title,
       'content': content,
       '_id': userId,
+      'user_id': userId,
       'token': token,
       'appkey': ApiConfig.appKey,
     };
@@ -39,7 +40,12 @@ class AnnouncementAddService {
 
       if (response.statusCode == 200) {
         final responseBody = jsonDecode(response.body);
-        return responseBody['_id'];
+
+        if (responseBody is Map<String, dynamic> && responseBody['success'] == true) {
+          return responseBody['announcement_id'] as String?;
+        } else {
+          return null;
+        }
       } else {
         return null;
       }

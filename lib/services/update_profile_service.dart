@@ -39,18 +39,22 @@ class UpdateProfileService {
         body: jsonEncode(payload),
       );
 
-      final Map<String, dynamic>? responseBody = jsonDecode(response.body) as Map<String, dynamic>?;
+      final responseBody = jsonDecode(response.body);
 
-      if (response.statusCode == 200) {
+      if (response.statusCode == 200 && responseBody is Map<String, dynamic> && responseBody['success'] == true) {
         return UpdateProfileResponse(
           success: true,
-          data: responseBody,
-          message: responseBody?['message'] as String? ?? 'Profil berhasil diperbarui.',
+          data: responseBody['data'] as Map<String, dynamic>?,
+          message: 'Profil berhasil diperbarui.',
         );
       } else {
+        String message = responseBody is Map<String, dynamic>
+            ? responseBody['message'] as String? ?? 'Gagal memperbarui profil.'
+            : 'Gagal memperbarui profil.';
+
         return UpdateProfileResponse(
           success: false,
-          message: responseBody?['message'] as String? ?? 'Gagal memperbarui profil.',
+          message: message,
           statusCode: response.statusCode,
         );
       }

@@ -16,27 +16,21 @@ class ForgotPasswordService {
         }),
       );
 
-      String messageFromServer = '';
-      Map<String, dynamic>? responseBody;
+      final responseBody = jsonDecode(response.body);
 
-      try {
-        if (response.body.isNotEmpty) {
-          responseBody = jsonDecode(response.body) as Map<String, dynamic>?;
-          messageFromServer = responseBody?['message'] as String? ?? '';
-        }
-      } catch (e) {
-        debugPrint("ForgotPasswordService: Error parsing JSON response body: $e");
-      }
+      if (responseBody is Map<String, dynamic> && responseBody.containsKey('success')) {
+        final bool success = responseBody['success'];
+        final String message = responseBody['message'] as String? ?? (success ? 'Link reset password telah dikirim.' : 'Gagal mengirim permintaan.');
 
-      if (response.statusCode == 200) {
         return ForgotPasswordResponse(
-          success: true,
-          message: messageFromServer.isNotEmpty ? messageFromServer : 'Link reset password telah dikirim ke email Anda.',
+          success: success,
+          message: message,
+          statusCode: response.statusCode,
         );
       } else {
         return ForgotPasswordResponse(
           success: false,
-          message: messageFromServer.isNotEmpty ? messageFromServer : 'Gagal mengirim email. (Status: ${response.statusCode})',
+          message: 'Format respons dari server tidak dikenal.',
           statusCode: response.statusCode,
         );
       }
@@ -44,7 +38,7 @@ class ForgotPasswordService {
       debugPrint('ForgotPasswordService Error: $e');
       return ForgotPasswordResponse(
         success: false,
-        message: 'Terjadi kesalahan koneksi atau lainnya. Silakan coba lagi.',
+        message: 'Terjadi kesalahan koneksi. Silakan coba lagi nanti.',
       );
     }
   }

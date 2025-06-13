@@ -27,7 +27,12 @@ class AnnouncementManageService {
 
     try {
       final response = await http.put(url, headers: headers, body: body);
-      return response.statusCode == 200;
+
+      if (response.statusCode == 200) {
+        final responseBody = jsonDecode(response.body);
+        return responseBody is Map<String, dynamic> && responseBody['success'] == true;
+      }
+      return false;
     } catch (e) {
       throw Exception('Failed to connect to server: $e');
     }
@@ -52,7 +57,12 @@ class AnnouncementManageService {
 
     try {
       final response = await http.post(url, headers: headers, body: body);
-      return response.statusCode == 200;
+
+      if (response.statusCode == 200) {
+        final responseBody = jsonDecode(response.body);
+        return responseBody is Map<String, dynamic> && responseBody['success'] == true;
+      }
+      return false;
     } catch (e) {
       throw Exception('Failed to connect to server: $e');
     }

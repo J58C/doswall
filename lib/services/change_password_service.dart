@@ -36,33 +36,21 @@ class ChangePasswordService {
         body: jsonEncode(payload),
       );
 
-      Map<String, dynamic>? responseBody;
-      String messageFromServer = '';
+      final responseBody = jsonDecode(response.body);
 
-      try {
-        if (response.body.isNotEmpty) {
-          responseBody = jsonDecode(response.body) as Map<String, dynamic>?;
-          messageFromServer = responseBody?['message'] as String? ?? '';
-        }
-      } catch (e) {
-        debugPrint("ChangePasswordService: Error parsing JSON response body: $e");
-      }
+      if (responseBody is Map<String, dynamic> && responseBody.containsKey('success')) {
+        final bool success = responseBody['success'];
+        final String message = responseBody['message'] as String? ?? (success ? 'Password berhasil diubah.' : 'Gagal mengubah password.');
 
-      if (response.statusCode == 200) {
-        bool apiSuccess = responseBody?['success'] as bool? ?? true;
         return ChangePasswordResponse(
-          success: apiSuccess,
-          message: messageFromServer.isNotEmpty
-              ? messageFromServer
-              : (apiSuccess ? 'Password berhasil diubah.' : 'Gagal mengubah password dari server.'),
-          data: apiSuccess ? responseBody : null,
+          success: success,
+          message: message,
+          statusCode: response.statusCode,
         );
       } else {
         return ChangePasswordResponse(
           success: false,
-          message: messageFromServer.isNotEmpty
-              ? messageFromServer
-              : 'Gagal mengubah password. (Status: ${response.statusCode})',
+          message: 'Gagal memproses respons dari server.',
           statusCode: response.statusCode,
         );
       }
@@ -70,7 +58,7 @@ class ChangePasswordService {
       debugPrint('ChangePasswordService Error: $e');
       return ChangePasswordResponse(
         success: false,
-        message: 'Terjadi kesalahan koneksi atau lainnya. Silakan coba lagi.',
+        message: 'Terjadi kesalahan koneksi. Silakan coba lagi nanti.',
       );
     }
   }

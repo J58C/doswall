@@ -17,37 +17,46 @@ class AuthService {
         }),
       );
 
+      final responseBody = jsonDecode(response.body);
+
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data is Map<String, dynamic> &&
-            data.containsKey('role') &&
-            data['role'] is String &&
-            ['user', 'admin', 'superadmin'].contains(data['role'])) {
-          return AuthResponse(success: true, userData: data);
-        } else if (data is Map<String, dynamic> && data.containsKey('message')) {
-          return AuthResponse(success: false, message: data['message'] as String? ?? 'Role pengguna tidak valid atau akun tidak aktif.');
-        } else {
-          return AuthResponse(success: false, message: 'Akun tidak aktif atau role tidak dikenal.');
-        }
-      } else if (response.statusCode == 401) {
-        String message = 'Email atau password salah.';
-        try {
-          final errorData = jsonDecode(response.body);
-          if (errorData is Map<String, dynamic> && errorData.containsKey('message')) {
-            message = errorData['message'] as String? ?? message;
+        if (responseBody is Map<String, dynamic> && responseBody['success'] == true) {
+
+          final userData = responseBody['data'] as Map<String, dynamic>?;
+
+          if (userData != null &&
+              userData.containsKey('role') &&
+              userData['role'] is String &&
+              ['user', 'admin', 'superadmin'].contains(userData['role'])) {
+
+            return AuthResponse(success: true, userData: userData);
+          } else {
+            // Jika 'data' tidak ada atau role tidak valid
+            return AuthResponse(success: false, message: 'Data pengguna tidak valid atau role tidak dikenal.');
           }
-        } catch (e) {
-          // Biarkan pesan default jika parsing gagal
+        } else {
+          String message = responseBody is Map<String, dynamic> && responseBody.containsKey('message')
+              ? responseBody['message'] as String? ?? 'Login gagal, silahkan cek kembali data anda.'
+              : 'Login gagal, silahkan cek kembali data anda.';
+          return AuthResponse(success: false, message: message);
+        }
+      }
+      else if (response.statusCode == 401) {
+        String message = 'Email atau password salah.';
+        if (responseBody is Map<String, dynamic> && responseBody.containsKey('message')) {
+          message = responseBody['message'] as String? ?? message;
         }
         return AuthResponse(success: false, message: message);
-      } else if (response.statusCode >= 500) {
+      }
+      else if (response.statusCode >= 500) {
         return AuthResponse(success: false, message: 'Server sedang bermasalah. Coba lagi nanti.');
-      } else {
+      }
+      else {
         return AuthResponse(success: false, message: 'Terjadi kesalahan. Kode: ${response.statusCode}');
       }
     } catch (e) {
       debugPrint('AuthService Login Error: $e');
-      return AuthResponse(success: false, message: 'Tidak dapat terhubung ke server atau terjadi kesalahan: $e');
+      return AuthResponse(success: false, message: 'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.');
     }
   }
 }

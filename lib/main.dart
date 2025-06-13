@@ -3,7 +3,6 @@ import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'dart:async';
-import 'dart:ui';
 
 import 'providers/theme_notifier.dart';
 import 'theme/app_theme.dart';
@@ -20,8 +19,6 @@ import 'services/user_storage.dart';
 
 @pragma('vm:entry-point')
 void onStart(ServiceInstance service) {
-  DartPluginRegistrant.ensureInitialized();
-
   service.on('stopService').listen((event) {
     service.stopSelf();
   });
