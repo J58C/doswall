@@ -36,6 +36,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final service = FlutterBackgroundService();
   final ExpansibleController _notesExpansionController = ExpansibleController();
 
+
   @override
   void initState() {
     super.initState();
@@ -73,25 +74,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _user = user;
       _isActive = isServiceRunning;
 
-      if (_isActive) {
-        final lat = user['lat'] as double?;
-        final long = user['long'] as double?;
-        if (lat != null && long != null) {
-          _currentLatLng = LatLng(lat, long);
-        }
+      final lat = user['lat'] as double?;
+      final long = user['long'] as double?;
+      if (lat != null && long != null) {
+        _currentLatLng = LatLng(lat, long);
+      } else {
+        _currentLatLng = null;
+      }
 
+      if (_isActive) {
         final options = user['location_options'] as List?;
         if (options != null) {
           _locationOptions = List<String>.from(options);
         }
         _selectedLocation = user['geotag'] as String?;
+      }
 
-        _storedNotes = user['notes'] as String?;
-        if (_storedNotes != null && _storedNotes != '-') {
-          _notesController.text = _storedNotes!;
-        }
-      } else {
-        _storedNotes = user['notes'] as String?;
+      _storedNotes = user['notes'] as String?;
+      if (_storedNotes != null && _storedNotes != '-') {
+        _notesController.text = _storedNotes!;
       }
     });
   }
@@ -117,13 +118,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ..remove('lat')
             ..remove('long')
             ..remove('location_options');
-
           await UserStorage.saveUser(updatedUser);
 
           if (!mounted) return;
           setState(() {
             _isActive = false;
-            _currentLatLng = null;
             _locationOptions = [];
             _selectedLocation = null;
             _user = updatedUser;
@@ -135,9 +134,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           messenger.showSnackBar(
             SnackBar(
               content: Text(result.success ? '✅ Presensi dinonaktifkan & profil diperbarui.' : '❌ Gagal memperbarui profil.'),
-              backgroundColor: result.success
-                  ? theme.extension<CustomColors>()?.success
-                  : theme.colorScheme.errorContainer,
+              backgroundColor: result.success ? theme.extension<CustomColors>()?.success : theme.colorScheme.errorContainer,
             ),
           );
         },
@@ -156,6 +153,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
         final updatedUser = Map<String, dynamic>.from(_user!)
           ..['geotag'] = uniqueLocations[0]
+          ..['status'] = 1
           ..['lat'] = result.lat
           ..['long'] = result.long
           ..['location_options'] = uniqueLocations;
@@ -163,11 +161,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         await UserStorage.saveUser(updatedUser);
 
         setState(() {
+          _user = updatedUser;
           _currentLatLng = LatLng(result.lat!, result.long!);
           _locationOptions = uniqueLocations;
           _selectedLocation = uniqueLocations[0];
-          _user = updatedUser;
         });
+
       } else {
         messenger.showSnackBar(SnackBar(content: Text(result.message ?? '❌ Gagal mendapatkan lokasi.')));
         setState(() => _isActive = false);
@@ -185,17 +184,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     setState(() => _updatingStatus = true);
     final updatedUser = Map<String, dynamic>.from(_user!);
     updatedUser['status'] = value ? 1 : 0;
-    await UserStorage.saveUser(updatedUser);
     if (!mounted) return;
     setState(() { _user = updatedUser; _updatingStatus = false; });
   }
 
   void _saveData() async {
     FocusScope.of(context).unfocus();
-    _notesExpansionController.collapse();
-
+    if (_notesExpansionController.isExpanded) {
+      _notesExpansionController.collapse();
+    }
     setState(() => _isSaving = true);
-
     try {
       if (_user == null) return;
 
@@ -204,17 +202,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
       final currentNotes = _notesController.text.trim();
       final currentSelectedLocation = _selectedLocation ?? (_isActive && _locationOptions.isNotEmpty ? _locationOptions[0] : '-');
+
       final updatedUser = Map<String, dynamic>.from(_user!)
         ..['notes'] = currentNotes.isEmpty ? '-' : currentNotes
         ..['geotag'] = currentSelectedLocation;
-
-      if (_isActive && _currentLatLng != null) {
-        updatedUser['lat'] = _currentLatLng!.latitude;
-        updatedUser['long'] = _currentLatLng!.longitude;
-      } else {
-        updatedUser.remove('lat');
-        updatedUser.remove('long');
-      }
 
       await UserStorage.saveUser(updatedUser);
       if (!mounted) return;
@@ -225,20 +216,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       messenger.showSnackBar(
         SnackBar(
           content: Text(result.success ? (result.message ?? '✅ Profil berhasil diperbarui.') : (result.message ?? '❌ Gagal memperbarui profil.')),
-          backgroundColor: result.success
-              ? theme.extension<CustomColors>()?.success
-              : theme.colorScheme.errorContainer,
+          backgroundColor: result.success ? theme.extension<CustomColors>()?.success : theme.colorScheme.errorContainer,
         ),
       );
 
-      if (result.success) {
-        await _loadUser();
-      }
+      if (result.success) await _loadUser();
 
     } finally {
-      if (mounted) {
-        setState(() => _isSaving = false);
-      }
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
@@ -256,8 +241,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           onConfirm();
         }, child: const Text('Konfirmasi')),
       ],
-    ),
-    );
+    ));
   }
 
   @override
@@ -280,18 +264,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Image.asset(
-                'assets/images/unnes_logo.jpg',
-                height: 26,
-                errorBuilder: (c, e, s) => const Icon(Icons.school, size: 26),
-              ),
+              Image.asset('assets/images/unnes_logo.jpg', height: 26, errorBuilder: (c, e, s) => const Icon(Icons.school, size: 26)),
               const SizedBox(width: 8),
-              Text(
-                  'Doswall',
-                  style: theme.appBarTheme.titleTextStyle?.copyWith(
-                    color: theme.appBarTheme.foregroundColor,
-                  )
-              ),
+              Text('Doswall', style: theme.appBarTheme.titleTextStyle?.copyWith(color: theme.appBarTheme.foregroundColor)),
             ],
           ),
         ),
@@ -335,10 +310,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       adminButton = AnimatedSwitcher(
         duration: const Duration(milliseconds: 250),
         transitionBuilder: (Widget child, Animation<double> animation) {
-          return ScaleTransition(
-            scale: animation,
-            child: FadeTransition(opacity: animation, child: child),
-          );
+          return ScaleTransition(scale: animation, child: FadeTransition(opacity: animation, child: child));
         },
         child: _isActive
             ? FloatingActionButton(
@@ -362,26 +334,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       );
     }
 
-    Widget? adminPlaceholder;
-    if (adminButton != null && _isActive) {
-      adminPlaceholder = const SizedBox(width: 56);
-    }
+    Widget centerCluster = (adminButton != null && _isActive)
+        ? Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        adminButton,
+        const SizedBox(width: 12),
+        saveButton,
+        const SizedBox(width: 12),
+        const SizedBox(width: 56),
+      ],
+    )
+        : (adminButton ?? saveButton);
 
-    Widget centerCluster;
-    if (adminButton != null && _isActive) {
-      centerCluster = Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          adminButton,
-          const SizedBox(width: 12),
-          saveButton,
-          const SizedBox(width: 12),
-          adminPlaceholder ?? const SizedBox.shrink(),
-        ],
-      );
-    } else {
-      centerCluster = adminButton ?? saveButton;
-    }
 
     return Stack(
       children: [
@@ -396,35 +361,28 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               _buildGeotagControlCard(theme),
               const SizedBox(height: 16.0),
               _buildPresenceDetailsCard(theme),
-              const SizedBox(height: 250),
             ],
           ),
         ),
-        _SubtleEntryAnimator(
-          duration: const Duration(milliseconds: 300),
-          child: Stack(
-            children: [
-              Positioned(
-                bottom: 16,
-                left: 0,
-                right: 0,
-                child: Align(
-                  alignment: Alignment.bottomCenter,
-                  child: centerCluster,
-                ),
+        Stack(
+          children: [
+            Positioned(
+              bottom: 16,
+              left: 0,
+              right: 0,
+              child: Align(alignment: Alignment.bottomCenter, child: centerCluster),
+            ),
+            Positioned(
+              bottom: 16,
+              right: 16,
+              child: FloatingActionButton(
+                heroTag: 'fab_announcements',
+                onPressed: _handleAnnouncements,
+                tooltip: 'Pengumuman',
+                child: const Icon(Icons.campaign_outlined),
               ),
-              Positioned(
-                bottom: 16,
-                right: 16,
-                child: FloatingActionButton(
-                  heroTag: 'fab_announcements',
-                  onPressed: _handleAnnouncements,
-                  tooltip: 'Pengumuman',
-                  child: const Icon(Icons.campaign_outlined),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ],
     );
@@ -463,9 +421,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           decoration: BoxDecoration(
             color: theme.colorScheme.surfaceContainerHighest.withAlpha(179),
             borderRadius: BorderRadius.circular(16.0),
-            border: Border.all(
-              color: theme.colorScheme.onSurface.withAlpha(26),
-            ),
+            border: Border.all(color: theme.colorScheme.onSurface.withAlpha(26)),
           ),
           child: Row(
             children: [
@@ -477,18 +433,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   children: [
                     Text('Status Presensi', style: theme.textTheme.titleLarge),
                     const SizedBox(height: 4),
-                    Text(
-                      _isActive ? 'Presensi diaktifkan' : 'Aktifkan untuk melapor',
-                      style: theme.textTheme.bodySmall,
-                    ),
+                    Text(_isActive ? 'Presensi diaktifkan' : 'Aktifkan untuk melapor', style: theme.textTheme.bodySmall),
                   ],
                 ),
               ),
               const SizedBox(width: 16),
-              Switch(
-                value: _isActive,
-                onChanged: _isFetchingLocation ? null : _toggleActive,
-              ),
+              Switch(value: _isActive, onChanged: _isFetchingLocation ? null : _toggleActive),
             ],
           ),
         ),
@@ -497,6 +447,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildPresenceDetailsCard(ThemeData theme) {
+    if (!_isActive && _currentLatLng == null) {
+      return Card(
+        child: Container(
+          padding: const EdgeInsets.all(24.0),
+          alignment: Alignment.center,
+          child: const Text(
+            "Aktifkan presensi untuk mendapatkan lokasi pertama anda.",
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+
     final validSelectedLocation = (_locationOptions.isNotEmpty && _locationOptions.contains(_selectedLocation))
         ? _selectedLocation
         : (_locationOptions.isNotEmpty ? _locationOptions[0] : null);
@@ -510,7 +473,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       mapContent = const Center(child: CircularProgressIndicator());
     } else if (_currentLatLng == null) {
       mapContent = Center(child: Padding(padding: const EdgeInsets.all(8.0),
-          child: Text('Lokasi tidak ditemukan.', style: theme.textTheme.bodyMedium, textAlign: TextAlign.center)));
+          child: Text('Lokasi terakhir tidak ditemukan.', style: theme.textTheme.bodyMedium, textAlign: TextAlign.center)));
     } else {
       mapContent = FlutterMap(
         options: MapOptions(
@@ -531,6 +494,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         if (_isActive)
           _SubtleEntryAnimator(
             duration: const Duration(milliseconds: 500),
+            delay: Duration.zero,
             child: IgnorePointer(
               ignoring: !isInteractable,
               child: AnimatedOpacity(
@@ -548,26 +512,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     subtitle: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          Icons.circle,
-                          size: 10,
-                          color: isEffectivelyAvailable
-                              ? theme.extension<CustomColors>()?.success
-                              : theme.colorScheme.error,
-                        ),
+                        Icon(Icons.circle, size: 10, color: isEffectivelyAvailable ? theme.extension<CustomColors>()?.success : theme.colorScheme.error),
                         const SizedBox(width: 6),
-                        Text(
-                          isEffectivelyAvailable ? 'Available' : 'Unavailable',
-                          style: theme.textTheme.bodySmall,
-                        ),
+                        Text(isEffectivelyAvailable ? 'Available' : 'Unavailable', style: theme.textTheme.bodySmall),
                       ],
                     ),
                     trailing: _updatingStatus
                         ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.0))
-                        : Switch(
-                      value: isEffectivelyAvailable,
-                      onChanged: isInteractable ? _updateStatus : null,
-                    ),
+                        : Switch(value: isEffectivelyAvailable, onChanged: isInteractable ? _updateStatus : null),
                   ),
                 ),
               ),
@@ -604,9 +556,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         mapContent,
                         if (isInteractable)
                           Positioned(
-                            top: 10,
-                            left: 12,
-                            right: 12,
+                            top: 10, left: 12, right: 12,
                             child: Material(
                               elevation: 4,
                               borderRadius: BorderRadius.circular(12),
@@ -620,10 +570,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                   hintText: 'Pilih Lokasi Terdekat',
                                   isDense: true,
                                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide.none,
-                                  ),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                                 ),
                               ),
                             ),
@@ -645,14 +592,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       enabled: isInteractable,
                       leading: const Icon(Icons.note_alt_outlined),
                       title: const Text('Catatan Tambahan'),
-                      subtitle: _notesController.text.isNotEmpty
-                          ? Text(
-                        _notesController.text,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall,
-                      )
-                          : null,
+                      subtitle: _notesController.text.isNotEmpty ? Text(_notesController.text, maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodySmall) : null,
                       children: [
                         Padding(
                           padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
@@ -665,13 +605,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                   ? IconButton(
                                 icon: const Icon(Icons.history_rounded),
                                 tooltip: 'Gunakan catatan sebelumnya',
-                                onPressed: isInteractable
-                                    ? () {
-                                  setState(() {
-                                    _notesController.text = _storedNotes!;
-                                  });
-                                }
-                                    : null,
+                                onPressed: isInteractable ? () => setState(() => _notesController.text = _storedNotes!) : null,
                               )
                                   : null,
                             ),
@@ -706,7 +640,8 @@ class _SubtleEntryAnimator extends StatefulWidget {
   State<_SubtleEntryAnimator> createState() => _SubtleEntryAnimatorState();
 }
 
-class _SubtleEntryAnimatorState extends State<_SubtleEntryAnimator> with SingleTickerProviderStateMixin {
+class _SubtleEntryAnimatorState extends State<_SubtleEntryAnimator>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _opacity;
   late Animation<Offset> _slide;

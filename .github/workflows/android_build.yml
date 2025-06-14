@@ -26,7 +26,6 @@ jobs:
       - name: Compress Simulator App
         run: |
           cd build/ios/iphonesimulator
-          # Zip direktori Runner.app menjadi Runner.app.zip
           zip -r ../../../Runner.app.zip Runner.app
       - name: Upload iOS Simulator Artifact
         uses: actions/upload-artifact@v4
@@ -39,6 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -72,20 +72,30 @@ jobs:
         with:
           name: simulator-app
 
-      - name: Create GitHub Release
+      - name: Create GitHub Release with Auto Changelog
         if: github.ref == 'refs/heads/master'
         uses: softprops/action-gh-release@v2
+        id: create_release
         with:
           tag_name: v${{ steps.get_version.outputs.version_name }}-${{ github.run_number }}
           name: Release v${{ steps.get_version.outputs.version_name }} (Build ${{ github.run_number }})
           generate_release_notes: true
-          body: |
+          prerelease: true
+          files: |
+            build/app/outputs/flutter-apk/app-v${{ steps.get_version.outputs.version_name }}-${{ github.run_number }}.apk
+            Runner.app.zip
+
+      - name: Prepend Release Notes
+        if: github.ref == 'refs/heads/master'
+        uses: anry28/gh-release-edit@v1.4
+        with:
+          release-url: ${{ steps.create_release.outputs.url }}
+          release-body: |
             ## Rilis Pratinjau
             
             - **APK**: File untuk instalasi di perangkat Android.
             - **Runner.app.zip**: File untuk testing di Simulator iOS di Mac.
-
-          files: |
-            build/app/outputs/flutter-apk/app-v${{ steps.get_version.outputs.version_name }}-${{ github.run_number }}.apk
-            Runner.app.zip
-          prerelease: true
+            
+            ---
+          body-mode: prepend
+          github-token: ${{ secrets.GITHUB_TOKEN }}

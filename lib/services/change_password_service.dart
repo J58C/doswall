@@ -1,9 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
+
 import '../config/api_config.dart';
 import '../models/change_password_response.dart';
+import './api_client.dart';
+import './user_storage.dart';
 
 class ChangePasswordService {
   static Future<ChangePasswordResponse> changePassword({
@@ -11,28 +12,24 @@ class ChangePasswordService {
     required String newPassword,
   }) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final String? userId = prefs.getString('user_id');
-      final String? token = prefs.getString('token');
+      final userData = await UserStorage.getUser();
+      final String? userId = userData['user_id'];
 
-      if (userId == null || token == null) {
+      if (userId == null) {
         return ChangePasswordResponse(
             success: false, message: 'Data pengguna tidak ditemukan. Silakan login kembali.');
       }
 
       final url = Uri.parse('${ApiConfig.changePasswordBaseUrl}/$userId');
-
       final Map<String, dynamic> payload = {
         'oldPW': oldPassword,
         'newPW': newPassword,
-        'token': token,
         'appkey': ApiConfig.appKey,
         '_id': userId,
       };
 
-      final response = await http.put(
+      final response = await ApiClient.put(
         url,
-        headers: {'Content-Type': 'application/json'},
         body: jsonEncode(payload),
       );
 

@@ -2,10 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import '../config/api_config.dart';
 import '../models/geotag_response.dart';
+import './api_client.dart';
+import './user_storage.dart';
 
 class GeotagService {
   static Future<GeotagResponse> fetchGeotagData() async {
@@ -39,24 +39,23 @@ class GeotagService {
       final double lat = position.latitude;
       final double long = position.longitude;
 
-      final prefs = await SharedPreferences.getInstance();
-      final String? id = prefs.getString('user_id');
-      final String? token = prefs.getString('token');
+      final userData = await UserStorage.getUser();
+      final String? id = userData['user_id'];
 
-      if (id == null || token == null) {
+      if (id == null) {
         return GeotagResponse(success: false, message: 'Data pengguna tidak lengkap. Silakan login kembali.');
       }
 
-      final response = await http.post(
+      final payload = {
+        'lat': lat.toString(),
+        'long': long.toString(),
+        '_id': id,
+        'appkey': ApiConfig.appKey,
+      };
+
+      final response = await ApiClient.post(
         Uri.parse(ApiConfig.getLocationListsUrl),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'lat': lat.toString(),
-          'long': long.toString(),
-          '_id': id,
-          'appkey': ApiConfig.appKey,
-          'token': token,
-        }),
+        body: jsonEncode(payload),
       );
 
       final responseBody = jsonDecode(response.body);

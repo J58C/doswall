@@ -1,35 +1,27 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../models/announcement.dart';
 import './user_storage.dart';
+import './api_client.dart';
 
 class AnnouncementFetchService {
   Future<List<Announcement>> fetchAnnouncements() async {
     final userData = await UserStorage.getUser();
-    final String userId = userData['user_id'];
-    final String token = userData['token'];
+    final String? userId = userData['user_id'];
 
-    if (userId.isEmpty || token.isEmpty) {
+    if (userId == null) {
       throw Exception('User not logged in or token is missing.');
     }
 
-    final url = Uri.parse('${ApiConfig.announcementsUrl}/getbyuser/$userId');
-
+    final url = Uri.parse('${ApiConfig.announcementsUrl}/getbyuser/');
     final requestBody = {
       'appkey': ApiConfig.appKey,
-      'token': token,
       '_id': userId,
     };
 
-    final headers = {
-      'Content-Type': 'application/json; charset=UTF-8',
-    };
-
     try {
-      final response = await http.post(
+      final response = await ApiClient.post(
         url,
-        headers: headers,
         body: jsonEncode(requestBody),
       );
 

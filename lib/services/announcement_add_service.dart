@@ -1,7 +1,7 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import './user_storage.dart';
+import './api_client.dart';
 
 class AnnouncementAddService {
   Future<String?> addAnnouncement({
@@ -9,32 +9,24 @@ class AnnouncementAddService {
     required String content,
   }) async {
     final userData = await UserStorage.getUser();
-    final String userId = userData['user_id'];
-    final String token = userData['token'];
+    final String? userId = userData['user_id'];
 
-    if (userId.isEmpty || token.isEmpty) {
-      throw Exception('User data is missing. Cannot add announcement.');
+    if (userId == null) {
+      throw Exception('User ID tidak ditemukan. Harap login ulang.');
     }
 
     final url = Uri.parse('${ApiConfig.announcementsUrl}/add');
-
     final requestBody = {
       'title': title,
       'content': content,
       '_id': userId,
       'user_id': userId,
-      'token': token,
       'appkey': ApiConfig.appKey,
     };
 
-    final headers = {
-      'Content-Type': 'application/json; charset=UTF-8',
-    };
-
     try {
-      final response = await http.post(
+      final response = await ApiClient.post(
         url,
-        headers: headers,
         body: jsonEncode(requestBody),
       );
 
@@ -50,7 +42,7 @@ class AnnouncementAddService {
         return null;
       }
     } catch (e) {
-      throw Exception('Failed to connect to the server: $e');
+      throw Exception('Gagal terhubung ke server: $e');
     }
   }
 }
