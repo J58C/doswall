@@ -42,7 +42,7 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Get project version
+      - name: Get project version from pubspec.yaml
         id: get_version
         run: echo "version_name=$(grep 'version:' pubspec.yaml | cut -d ' ' -f 2 | cut -d '+' -f 1)" >> $GITHUB_OUTPUT
       - name: Setup Java
@@ -66,7 +66,6 @@ jobs:
         run: flutter build apk --release --build-number=${{ github.run_number }}
       - name: Rename APK file
         run: mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/app-v${{ steps.get_version.outputs.version_name }}-${{ github.run_number }}.apk
-
       - name: Download iOS Simulator Artifact
         uses: actions/download-artifact@v4
         with:
@@ -75,27 +74,18 @@ jobs:
       - name: Create GitHub Release with Auto Changelog
         if: github.ref == 'refs/heads/master'
         uses: softprops/action-gh-release@v2
-        id: create_release
         with:
           tag_name: v${{ steps.get_version.outputs.version_name }}-${{ github.run_number }}
           name: Release v${{ steps.get_version.outputs.version_name }} (Build ${{ github.run_number }})
+          body: |
+            ## Rilis Pratinjau
+
+            - **APK**: File untuk instalasi di perangkat Android.
+            - **Runner.app.zip**: File untuk testing di Simulator iOS di Mac.
+
+            ---
           generate_release_notes: true
           prerelease: true
           files: |
             build/app/outputs/flutter-apk/app-v${{ steps.get_version.outputs.version_name }}-${{ github.run_number }}.apk
             Runner.app.zip
-
-      - name: Prepend Release Notes
-        if: github.ref == 'refs/heads/master'
-        uses: anry28/gh-release-edit@v1.4
-        with:
-          release-url: ${{ steps.create_release.outputs.url }}
-          release-body: |
-            ## Rilis Pratinjau
-            
-            - **APK**: File untuk instalasi di perangkat Android.
-            - **Runner.app.zip**: File untuk testing di Simulator iOS di Mac.
-            
-            ---
-          body-mode: prepend
-          github-token: ${{ secrets.GITHUB_TOKEN }}
