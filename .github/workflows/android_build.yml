@@ -16,7 +16,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.32.3'
+          flutter-version: '3.32.4'
           channel: 'stable'
           cache: true
       - name: Install dependencies
@@ -53,7 +53,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.32.3'
+          flutter-version: '3.32.4'
           channel: 'stable'
           cache: true
       - name: Install dependencies
@@ -77,13 +77,6 @@ jobs:
         with:
           tag_name: v${{ steps.get_version.outputs.version_name }}-${{ github.run_number }}
           name: Release v${{ steps.get_version.outputs.version_name }} (Build ${{ github.run_number }})
-          body: |
-            ## Rilis Pratinjau
-
-            - **APK**: File untuk instalasi di perangkat Android.
-            - **Runner.app.zip**: File untuk testing di Simulator iOS di Mac.
-
-            ---
           generate_release_notes: true
           prerelease: true
           files: |

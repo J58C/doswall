@@ -1,14 +1,15 @@
-import 'package:flutter/material.dart';
 import 'dart:ui';
+import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_tile_provider.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_background_service/flutter_background_service.dart';
+
 import '../services/user_storage.dart';
 import '../services/geotag_service.dart';
-import '../models/geotag_response.dart';
 import '../services/update_profile_service.dart';
+import '../models/geotag_response.dart';
 import '../models/update_profile_response.dart';
 import '../providers/theme_notifier.dart';
 import '../theme/custom_colors.dart';
@@ -41,10 +42,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _loadUser();
+    _loadAndSyncOnStartup();
     _notesController.addListener(() {
       if (mounted) setState(() {});
     });
+  }
+
+  Future<void> _loadAndSyncOnStartup() async {
+    await _loadUser();
+
+    if (mounted && _isActive && _currentLatLng == null) {
+      _fetchLocationData();
+    }
   }
 
   @override
@@ -78,21 +87,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final long = user['long'] as double?;
       if (lat != null && long != null) {
         _currentLatLng = LatLng(lat, long);
-      } else {
-        _currentLatLng = null;
       }
 
-      if (_isActive) {
-        final options = user['location_options'] as List?;
-        if (options != null) {
-          _locationOptions = List<String>.from(options);
-        }
-        _selectedLocation = user['geotag'] as String?;
+      final options = user['location_options'] as List?;
+      if (options != null) {
+        _locationOptions = List<String>.from(options);
       }
 
+      _selectedLocation = user['geotag'] as String?;
       _storedNotes = user['notes'] as String?;
       if (_storedNotes != null && _storedNotes != '-') {
         _notesController.text = _storedNotes!;
+      } else {
+        _notesController.clear();
       }
     });
   }
@@ -109,34 +116,29 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         onConfirm: () async {
           service.invoke("stopService");
 
-          final messenger = ScaffoldMessenger.of(context);
-          final theme = Theme.of(context);
-
           final updatedUser = Map<String, dynamic>.from(_user!)
             ..['geotag'] = '-'
             ..['status'] = 0
             ..remove('lat')
             ..remove('long')
             ..remove('location_options');
+
           await UserStorage.saveUser(updatedUser);
+
+          try {
+            await UpdateProfileService.updateUserProfile();
+          } catch (e) {
+            debugPrint("Gagal menyinkronkan status nonaktif: $e");
+          }
 
           if (!mounted) return;
           setState(() {
             _isActive = false;
             _locationOptions = [];
             _selectedLocation = null;
+            _currentLatLng = null;
             _user = updatedUser;
           });
-
-          final result = await UpdateProfileService.updateUserProfile();
-          if (!mounted) return;
-
-          messenger.showSnackBar(
-            SnackBar(
-              content: Text(result.success ? '✅ Presensi dinonaktifkan & profil diperbarui.' : '❌ Gagal memperbarui profil.'),
-              backgroundColor: result.success ? theme.extension<CustomColors>()?.success : theme.colorScheme.errorContainer,
-            ),
-          );
         },
       );
     }
@@ -148,17 +150,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     try {
       final GeotagResponse result = await GeotagService.fetchGeotagData();
       if (!mounted) return;
+
       if (result.success && result.lat != null && result.long != null && (result.locationLists?.isNotEmpty ?? false)) {
         final uniqueLocations = result.locationLists!.toSet().toList();
 
         final updatedUser = Map<String, dynamic>.from(_user!)
           ..['geotag'] = uniqueLocations[0]
-          ..['status'] = 1
+          ..['status'] = 0
           ..['lat'] = result.lat
           ..['long'] = result.long
           ..['location_options'] = uniqueLocations;
 
         await UserStorage.saveUser(updatedUser);
+
+        // Kirim status default (Unavailable) ke server
+        UpdateProfileService.updateUserProfile().catchError((error) {
+          debugPrint("Pembaruan profil di latar belakang gagal: $error");
+          return UpdateProfileResponse(success: false, message: 'Background update failed');
+        });
 
         setState(() {
           _user = updatedUser;
@@ -184,8 +193,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     setState(() => _updatingStatus = true);
     final updatedUser = Map<String, dynamic>.from(_user!);
     updatedUser['status'] = value ? 1 : 0;
-    if (!mounted) return;
-    setState(() { _user = updatedUser; _updatingStatus = false; });
+    await UserStorage.saveUser(updatedUser);
+
+    if (mounted) {
+      setState(() {
+        _user = updatedUser;
+        _updatingStatus = false;
+      });
+    }
+
+    UpdateProfileService.updateUserProfile().catchError((error) {
+      debugPrint("Gagal sinkronisasi status (Available/Unavailable): $error");
+      return UpdateProfileResponse(success: false, message: 'Status sync failed');
+    });
   }
 
   void _saveData() async {
@@ -447,7 +467,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildPresenceDetailsCard(ThemeData theme) {
-    if (!_isActive && _currentLatLng == null) {
+    if (_currentLatLng == null) {
       return Card(
         child: Container(
           padding: const EdgeInsets.all(24.0),
@@ -471,9 +491,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     Widget mapContent;
     if (_isFetchingLocation) {
       mapContent = const Center(child: CircularProgressIndicator());
-    } else if (_currentLatLng == null) {
-      mapContent = Center(child: Padding(padding: const EdgeInsets.all(8.0),
-          child: Text('Lokasi terakhir tidak ditemukan.', style: theme.textTheme.bodyMedium, textAlign: TextAlign.center)));
     } else {
       mapContent = FlutterMap(
         options: MapOptions(
@@ -488,139 +505,139 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       );
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (_isActive)
-          _SubtleEntryAnimator(
-            duration: const Duration(milliseconds: 500),
-            delay: Duration.zero,
-            child: IgnorePointer(
-              ignoring: !isInteractable,
-              child: AnimatedOpacity(
-                duration: const Duration(milliseconds: 250),
-                opacity: isInteractable ? 1.0 : 0.5,
-                child: Card(
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                    leading: Icon(
-                      isEffectivelyAvailable ? Icons.check_circle_outline : Icons.highlight_off_outlined,
-                      color: isEffectivelyAvailable ? theme.extension<CustomColors>()?.success : theme.colorScheme.error,
-                      size: 28,
-                    ),
-                    title: const Text('Status'),
-                    subtitle: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.circle, size: 10, color: isEffectivelyAvailable ? theme.extension<CustomColors>()?.success : theme.colorScheme.error),
-                        const SizedBox(width: 6),
-                        Text(isEffectivelyAvailable ? 'Available' : 'Unavailable', style: theme.textTheme.bodySmall),
-                      ],
-                    ),
-                    trailing: _updatingStatus
-                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.0))
-                        : Switch(value: isEffectivelyAvailable, onChanged: isInteractable ? _updateStatus : null),
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 300),
+      opacity: _isActive ? 1.0 : 0.6,
+      child: IgnorePointer(
+        ignoring: !_isActive,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _SubtleEntryAnimator(
+              duration: const Duration(milliseconds: 500),
+              delay: Duration.zero,
+              key: const ValueKey('status_card'),
+              child: Card(
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  leading: Icon(
+                    isEffectivelyAvailable ? Icons.check_circle_outline : Icons.highlight_off_outlined,
+                    color: isEffectivelyAvailable ? theme.extension<CustomColors>()?.success : theme.colorScheme.error,
+                    size: 28,
                   ),
+                  title: const Text('Status'),
+                  subtitle: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.circle, size: 10, color: isEffectivelyAvailable ? theme.extension<CustomColors>()?.success : theme.colorScheme.error),
+                      const SizedBox(width: 6),
+                      Text(isEffectivelyAvailable ? 'Available' : 'Unavailable', style: theme.textTheme.bodySmall),
+                    ],
+                  ),
+                  trailing: _updatingStatus
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.0))
+                      : Switch(value: isEffectivelyAvailable, onChanged: isInteractable ? _updateStatus : null),
                 ),
               ),
             ),
-          ),
-        const SizedBox(height: 16.0),
-        if (_isActive)
-          _SubtleEntryAnimator(
-            duration: const Duration(milliseconds: 500),
-            delay: const Duration(milliseconds: 100),
-            child: Card(
-              clipBehavior: Clip.antiAlias,
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Text('Lokasi', style: theme.textTheme.titleMedium),
-                        IconButton(
-                          icon: const Icon(Icons.refresh_rounded),
-                          tooltip: 'Ambil Ulang Lokasi',
-                          onPressed: isInteractable ? _fetchLocationData : null,
-                        ),
-                      ],
+            const SizedBox(height: 16.0),
+            _SubtleEntryAnimator(
+              duration: const Duration(milliseconds: 500),
+              delay: const Duration(milliseconds: 100),
+              key: const ValueKey('details_card'),
+              child: Card(
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Text('Lokasi', style: theme.textTheme.titleMedium),
+                          IconButton(
+                            icon: const Icon(Icons.refresh_rounded),
+                            tooltip: 'Ambil Ulang Lokasi',
+                            onPressed: isInteractable ? _fetchLocationData : null,
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  SizedBox(
-                    height: 180,
-                    child: Stack(
-                      children: [
-                        mapContent,
-                        if (isInteractable)
-                          Positioned(
-                            top: 10, left: 12, right: 12,
-                            child: Material(
-                              elevation: 4,
-                              borderRadius: BorderRadius.circular(12),
-                              child: DropdownButtonFormField<String>(
-                                value: validSelectedLocation,
-                                items: _locationOptions.map((loc) => DropdownMenuItem<String>(value: loc, child: Text(loc, overflow: TextOverflow.ellipsis))).toList(),
-                                onChanged: (val) => setState(() => _selectedLocation = val),
-                                decoration: InputDecoration(
-                                  filled: true,
-                                  fillColor: theme.colorScheme.surface.withAlpha(240),
-                                  hintText: 'Pilih Lokasi Terdekat',
-                                  isDense: true,
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    SizedBox(
+                      height: 180,
+                      child: Stack(
+                        children: [
+                          mapContent,
+                          if (isInteractable)
+                            Positioned(
+                              top: 10, left: 12, right: 12,
+                              child: Material(
+                                elevation: 4,
+                                borderRadius: BorderRadius.circular(12),
+                                child: DropdownButtonFormField<String>(
+                                  value: validSelectedLocation,
+                                  items: _locationOptions.map((loc) => DropdownMenuItem<String>(value: loc, child: Text(loc, overflow: TextOverflow.ellipsis))).toList(),
+                                  onChanged: (val) => setState(() => _selectedLocation = val),
+                                  decoration: InputDecoration(
+                                    filled: true,
+                                    fillColor: theme.colorScheme.surface.withAlpha(240),
+                                    hintText: 'Pilih Lokasi Terdekat',
+                                    isDense: true,
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  Theme(
-                    data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-                    child: ExpansionTile(
-                      controller: _notesExpansionController,
-                      onExpansionChanged: (isExpanding) {
-                        if (isExpanding) {
-                          _notesFocusNode.requestFocus();
-                        } else {
-                          _notesFocusNode.unfocus();
-                        }
-                      },
-                      enabled: isInteractable,
-                      leading: const Icon(Icons.note_alt_outlined),
-                      title: const Text('Catatan Tambahan'),
-                      subtitle: _notesController.text.isNotEmpty ? Text(_notesController.text, maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodySmall) : null,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-                          child: TextField(
-                            focusNode: _notesFocusNode,
-                            controller: _notesController,
-                            decoration: InputDecoration(
-                              hintText: 'Tulis catatan Anda di sini...',
-                              suffixIcon: hasStoredNotes
-                                  ? IconButton(
-                                icon: const Icon(Icons.history_rounded),
-                                tooltip: 'Gunakan catatan sebelumnya',
-                                onPressed: isInteractable ? () => setState(() => _notesController.text = _storedNotes!) : null,
-                              )
-                                  : null,
+                    Theme(
+                      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                      child: ExpansionTile(
+                        controller: _notesExpansionController,
+                        onExpansionChanged: (isExpanding) {
+                          if (isExpanding) {
+                            _notesFocusNode.requestFocus();
+                          } else {
+                            _notesFocusNode.unfocus();
+                          }
+                        },
+                        enabled: isInteractable,
+                        leading: const Icon(Icons.note_alt_outlined),
+                        title: const Text('Catatan Tambahan'),
+                        subtitle: _notesController.text.isNotEmpty ? Text(_notesController.text, maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodySmall) : null,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+                            child: TextField(
+                              focusNode: _notesFocusNode,
+                              controller: _notesController,
+                              decoration: InputDecoration(
+                                hintText: 'Tulis catatan Anda di sini...',
+                                suffixIcon: hasStoredNotes
+                                    ? IconButton(
+                                  icon: const Icon(Icons.history_rounded),
+                                  tooltip: 'Gunakan catatan sebelumnya',
+                                  onPressed: isInteractable ? () => setState(() => _notesController.text = _storedNotes!) : null,
+                                )
+                                    : null,
+                              ),
+                              maxLines: 3,
+                              textInputAction: TextInputAction.done,
                             ),
-                            maxLines: 3,
-                            textInputAction: TextInputAction.done,
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-      ],
+          ],
+        ),
+      ),
     );
   }
 }
@@ -631,6 +648,7 @@ class _SubtleEntryAnimator extends StatefulWidget {
   final Duration delay;
 
   const _SubtleEntryAnimator({
+    super.key,
     required this.child,
     this.duration = const Duration(milliseconds: 500),
     this.delay = Duration.zero,
