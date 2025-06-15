@@ -52,7 +52,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     await _loadUser();
 
     if (mounted && _isActive && _currentLatLng == null) {
-      _fetchLocationData();
+      _fetchLocationData(isNewActivation: false);
     }
   }
 
@@ -108,7 +108,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (value) {
       setState(() => _isActive = true);
       service.startService();
-      _fetchLocationData();
+      _fetchLocationData(isNewActivation: true);
     } else {
       _showConfirmationDialog(
         title: 'Nonaktifkan Presensi?',
@@ -144,7 +144,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _fetchLocationData() async {
+  Future<void> _fetchLocationData({bool isNewActivation = false}) async {
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _isFetchingLocation = true);
     try {
@@ -154,16 +154,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (result.success && result.lat != null && result.long != null && (result.locationLists?.isNotEmpty ?? false)) {
         final uniqueLocations = result.locationLists!.toSet().toList();
 
+        final currentStatus = _user?['status'] as int? ?? 0;
+        final newStatus = isNewActivation ? 0 : currentStatus;
+
         final updatedUser = Map<String, dynamic>.from(_user!)
           ..['geotag'] = uniqueLocations[0]
-          ..['status'] = 0
+          ..['status'] = newStatus
           ..['lat'] = result.lat
           ..['long'] = result.long
           ..['location_options'] = uniqueLocations;
 
         await UserStorage.saveUser(updatedUser);
 
-        // Kirim status default (Unavailable) ke server
         UpdateProfileService.updateUserProfile().catchError((error) {
           debugPrint("Pembaruan profil di latar belakang gagal: $error");
           return UpdateProfileResponse(success: false, message: 'Background update failed');
@@ -559,7 +561,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           IconButton(
                             icon: const Icon(Icons.refresh_rounded),
                             tooltip: 'Ambil Ulang Lokasi',
-                            onPressed: isInteractable ? _fetchLocationData : null,
+                            onPressed: isInteractable ? () => _fetchLocationData(isNewActivation: false) : null,
                           ),
                         ],
                       ),

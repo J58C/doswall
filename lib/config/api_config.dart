@@ -11,4 +11,5 @@ class ApiConfig {
   static const String changePasswordBaseUrl = '$baseUrl/api/password/update';
   static const String getSessionTokenUrl = '$baseUrl/appkey/getsessiontoken';
   static const String checkTokenStatusUrl = '$baseUrl/appkey/checktokenstatus';
+  static const String getUserDataUrl = '$baseUrl/api/clients/get/';
 }
