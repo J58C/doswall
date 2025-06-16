@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../services/auth_service.dart';
-import '../models/auth_response.dart';
 import '../services/user_storage.dart';
+import '../services/permission_service.dart';
+import '../models/auth_response.dart';
 import '../providers/theme_notifier.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -42,9 +43,18 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     ).animate(CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic));
 
     _animController.forward();
-
     _emailController.addListener(_clearError);
     _passwordController.addListener(_clearError);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkPermissionOnStartup();
+    });
+  }
+
+  Future<void> _checkPermissionOnStartup() async {
+    if (mounted) {
+      await PermissionService.handleLocationPermission(context);
+    }
   }
 
   void _clearError() {
@@ -118,7 +128,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
               onPressed: () => themeNotifier.toggleTheme(theme.brightness),
             ),
           ),
-
           Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -139,7 +148,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   Widget _buildArtisticBackground(BuildContext context, bool isDark) {
     final primary = Theme.of(context).colorScheme.primary;
     final secondary = Theme.of(context).colorScheme.secondary;
-
     return Stack(
       children: [
         Positioned(
@@ -173,7 +181,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   Widget _buildGlassmorphismCard(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-
     return ClipRRect(
       borderRadius: BorderRadius.circular(24),
       child: BackdropFilter(
@@ -183,9 +190,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           decoration: BoxDecoration(
             color: theme.colorScheme.surface.withAlpha((255 * (isDark ? 0.2 : 0.4)).round()),
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: theme.colorScheme.onSurface.withAlpha((255 * 0.1).round()),
-            ),
+            border: Border.all(color: theme.colorScheme.onSurface.withAlpha((255 * 0.1).round())),
           ),
           child: Form(
             key: _formKey,
@@ -216,23 +221,11 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     final textTheme = Theme.of(context).textTheme;
     return Column(
       children: [
-        Icon(
-          Icons.school_outlined,
-          size: 48,
-          color: Theme.of(context).colorScheme.primary,
-        ),
+        Icon(Icons.school_outlined, size: 48, color: Theme.of(context).colorScheme.primary),
         const SizedBox(height: 16),
-        Text(
-          'Selamat Datang',
-          style: textTheme.headlineSmall,
-          textAlign: TextAlign.center,
-        ),
+        Text('Selamat Datang', style: textTheme.headlineSmall, textAlign: TextAlign.center),
         const SizedBox(height: 4),
-        Text(
-          'Masuk untuk melanjutkan ke sistem presensi.',
-          style: textTheme.bodyMedium,
-          textAlign: TextAlign.center,
-        ),
+        Text('Masuk untuk melanjutkan ke sistem presensi.', style: textTheme.bodyMedium, textAlign: TextAlign.center),
       ],
     );
   }
@@ -308,10 +301,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         ),
         child: Row(
           children: [
-            Icon(
-                Icons.error_outline,
-                color: Theme.of(context).colorScheme.onErrorContainer
-            ),
+            Icon(Icons.error_outline, color: Theme.of(context).colorScheme.onErrorContainer),
             const SizedBox(width: 12),
             Expanded(
               child: Text(

@@ -72,13 +72,33 @@ jobs:
         with:
           name: simulator-app
 
-      - name: Create GitHub Release with Auto Changelog
+      - name: Generate Changelog
+        id: changelog_generator
+        run: |
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$LATEST_TAG" ]; then
+            echo "No previous tag found, including all commits."
+            LOG_RANGE="HEAD"
+          else
+            echo "Found previous tag: $LATEST_TAG"
+            LOG_RANGE="${LATEST_TAG}..HEAD"
+          fi
+          {
+            echo "changelog<<EOF"
+            echo "### What's Changed"
+            echo ""
+            git log $LOG_RANGE --pretty=format:'* %s (%h)'
+            echo ""
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
         if: github.ref == 'refs/heads/master'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.get_version.outputs.version_name }}-${{ github.run_number }}
           name: Release v${{ steps.get_version.outputs.version_name }} (Build ${{ github.run_number }})
-          generate_release_notes: true
+          body: ${{ steps.changelog_generator.outputs.changelog }}
           prerelease: true
           files: |
             build/app/outputs/flutter-apk/app-v${{ steps.get_version.outputs.version_name }}-${{ github.run_number }}.apk
