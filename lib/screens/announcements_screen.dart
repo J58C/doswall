@@ -3,7 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../services/announcement_service.dart';
-import '../models/announcement.dart';
+import '../models/announcement_response.dart';
 import '../theme/custom_colors.dart';
 import '../providers/theme_notifier.dart';
 

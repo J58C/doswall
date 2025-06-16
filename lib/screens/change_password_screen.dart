@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/theme_notifier.dart';
-import '../services/change_password_service.dart';
-import '../models/change_password_response.dart';
+import '../services/password_service.dart';
+import '../models/password_response.dart';
 import '../theme/custom_colors.dart';
 
 class ChangePasswordScreen extends StatefulWidget {
@@ -56,7 +56,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> with Ticker
     setState(() => _loading = true);
 
     try {
-      final ChangePasswordResponse result = await ChangePasswordService.changePassword(
+      final PasswordResponse result = await PasswordService.changePassword(
         oldPassword: _oldPasswordController.text,
         newPassword: _newPasswordController.text,
       );

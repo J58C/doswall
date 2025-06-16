@@ -1,0 +1,31 @@
+changelog:
+  exclude:
+    labels:
+      - ignore-for-release
+    authors:
+      - github-actions
+  categories:
+    - title: "✨ Fitur Baru"
+      labels:
+        - "feature"
+        - "enhancement"
+      commits:
+        - "feat"
+    - title: "🐛 Perbaikan Bug"
+      labels:
+        - "bug"
+      commits:
+        - "fix"
+    - title: "🔨 Refactoring & Peningkatan Kode"
+      labels:
+        - "refactor"
+      commits:
+        - "refactor"
+    - title: "📄 Dokumentasi"
+      labels:
+        - "documentation"
+      commits:
+        - "docs"
+    - title: "⚙️ Lain-lain"
+      labels:
+        - "*"

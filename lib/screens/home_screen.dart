@@ -8,9 +8,9 @@ import 'package:provider/provider.dart';
 
 import '../services/user_storage.dart';
 import '../services/geotag_service.dart';
-import '../services/update_profile_service.dart';
+import '../services/profile_service.dart';
 import '../models/geotag_response.dart';
-import '../models/update_profile_response.dart';
+import '../models/profile_response.dart';
 import '../providers/theme_notifier.dart';
 import '../theme/custom_colors.dart';
 
@@ -148,7 +148,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           await UserStorage.saveUser(updatedUser);
 
           try {
-            await UpdateProfileService.updateUserProfile();
+            await ProfileService.updateUserProfile();
           } catch (e) {
             debugPrint("Gagal menyinkronkan status nonaktif: $e");
           }
@@ -189,7 +189,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
         await UserStorage.saveUser(updatedUser);
 
-        UpdateProfileService.updateUserProfile().catchError((error) {
+        ProfileService.updateUserProfile().catchError((error) {
           debugPrint("Pembaruan profil di latar belakang gagal: $error");
           return UpdateProfileResponse(success: false, message: 'Background update failed');
         });
@@ -227,7 +227,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       });
     }
 
-    UpdateProfileService.updateUserProfile().catchError((error) {
+    ProfileService.updateUserProfile().catchError((error) {
       debugPrint("Gagal sinkronisasi status (Available/Unavailable): $error");
       return UpdateProfileResponse(success: false, message: 'Status sync failed');
     });
@@ -256,7 +256,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       await UserStorage.saveUser(updatedUser);
       if (!mounted) return;
 
-      final UpdateProfileResponse result = await UpdateProfileService.updateUserProfile();
+      final UpdateProfileResponse result = await ProfileService.updateUserProfile();
 
       if (!mounted) return;
       messenger.showSnackBar(

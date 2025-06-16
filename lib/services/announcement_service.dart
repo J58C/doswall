@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import '../config/api_config.dart';
-import '../models/announcement.dart';
+import '../models/announcement_response.dart';
 import './user_storage.dart';
 import './api_client.dart';
 

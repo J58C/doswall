@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../services/forgot_password_service.dart';
-import '../models/forgot_password_response.dart';
+import '../services/password_service.dart';
+import '../models/password_response.dart';
 import '../providers/theme_notifier.dart';
 import '../theme/custom_colors.dart';
 
@@ -49,7 +49,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> with Single
     setState(() => _loading = true);
 
     try {
-      final ForgotPasswordResponse result = await ForgotPasswordService.requestPasswordReset(
+      final PasswordResponse result = await PasswordService.requestPasswordReset(
         _emailController.text.trim(),
       );
 
