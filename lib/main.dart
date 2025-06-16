@@ -6,15 +6,12 @@ import 'dart:async';
 
 import '../providers/theme_notifier.dart';
 import '../theme/app_theme.dart';
-import '../models/announcement.dart';
 import '../screens/splash_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/forgot_password_screen.dart';
 import '../screens/announcements_screen.dart';
 import '../screens/change_password_screen.dart';
-import '../screens/add_announcement_screen.dart';
-import '../screens/edit_announcement_screen.dart';
 import '../screens/profile_screen.dart';
 
 import '../services/api_client.dart';
@@ -88,23 +85,8 @@ class MyApp extends StatelessWidget {
             '/home': (context) => const HomeScreen(),
             '/forgot': (context) => const ForgotPasswordScreen(),
             '/announcements': (context) => const AnnouncementsScreen(),
-            '/add-announcement': (context) => const AddAnnouncementScreen(),
             '/profile': (context) => const ProfileScreen(),
             '/change-password': (context) => const ChangePasswordScreen(),
-          },
-
-          onGenerateRoute: (settings) {
-            if (settings.name == '/edit-announcement') {
-              if (settings.arguments is Announcement) {
-                final announcement = settings.arguments as Announcement;
-                return MaterialPageRoute(
-                  builder: (_) => EditAnnouncementScreen(announcement: announcement),
-                );
-              }
-              return MaterialPageRoute(builder: (_) => const AnnouncementsScreen());
-            }
-            return MaterialPageRoute(builder: (_) => const SplashScreen());
-
           },
         );
       },
