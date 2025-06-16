@@ -42,6 +42,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Get project version from pubspec.yaml
         id: get_version
         run: echo "version_name=$(grep 'version:' pubspec.yaml | cut -d ' ' -f 2 | cut -d '+' -f 1)" >> $GITHUB_OUTPUT
@@ -63,7 +65,7 @@ jobs:
       - name: Run tests
         run: flutter test
       - name: Build Android APK
-        run: flutter build apk --release --build-number=${{ github.run_number }}
+        run: flutter build apk --release --build-name=${{ steps.get_version.outputs.version_name }} --build-number=${{ github.run_number }}
       - name: Rename APK file
         run: mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/app-v${{ steps.get_version.outputs.version_name }}-${{ github.run_number }}.apk
       - name: Download iOS Simulator Artifact

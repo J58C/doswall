@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_tile_provider.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
@@ -15,12 +16,13 @@ import '../theme/custom_colors.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
-
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+  final GlobalKey _notesExpansionTileKey = GlobalKey();
+  DateTime? _lastBackPressed;
   Map<String, dynamic>? _user;
   bool _isActive = false;
   bool _isFetchingLocation = false;
@@ -35,14 +37,36 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final ScrollController _scrollController = ScrollController();
   final service = FlutterBackgroundService();
   final ExpansibleController _notesExpansionController = ExpansibleController();
+  bool _isNotesExpanded = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _loadAndSyncOnStartup();
-    _notesController.addListener(() {
-      if (mounted) setState(() {});
+    _notesFocusNode.addListener(_onFocusChange);
+  }
+
+  void _executeScroll() {
+    if (!mounted) return;
+    final context = _notesExpansionTileKey.currentContext;
+    if (context != null) {
+      Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        alignment: 0.4,
+      );
+    }
+  }
+
+  void _onFocusChange() {
+    if (!_notesFocusNode.hasFocus) return;
+    _notesExpansionController.expand();
+    Future.delayed(const Duration(milliseconds: 400), () {
+      if (mounted) {
+        _executeScroll();
+      }
     });
   }
 
@@ -65,6 +89,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _notesController.dispose();
+    _notesFocusNode.removeListener(_onFocusChange);
     _notesFocusNode.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -142,6 +167,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _fetchLocationData({bool isNewActivation = false}) async {
+    if (!mounted) return;
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _isFetchingLocation = true);
     try {
@@ -177,11 +203,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
       } else {
         messenger.showSnackBar(SnackBar(content: Text(result.message ?? '❌ Gagal mendapatkan lokasi.')));
-        setState(() => _isActive = false);
+        if(mounted) setState(() => _isActive = false);
       }
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('❌ Terjadi error: ${e.toString()}')));
-      setState(() => _isActive = false);
+      if(mounted) messenger.showSnackBar(SnackBar(content: Text('❌ Terjadi error: ${e.toString()}')));
+      if(mounted) setState(() => _isActive = false);
     } finally {
       if (mounted) setState(() => _isFetchingLocation = false);
     }
@@ -208,6 +234,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   void _saveData() async {
+    if (!mounted) return;
     FocusScope.of(context).unfocus();
     if (_notesExpansionController.isExpanded) {
       _notesExpansionController.collapse();
@@ -279,54 +306,73 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ? theme.colorScheme.onSurface
         : theme.colorScheme.onPrimary;
 
-    return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: appBarColor,
-        elevation: 1,
-        shadowColor: Colors.black.withAlpha(50),
-        automaticallyImplyLeading: false,
-        title: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: onAppBarColor.withAlpha(20),
-            borderRadius: BorderRadius.circular(30),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, dynamic result) {
+        if (didPop) return;
+
+        final now = DateTime.now();
+        if (_lastBackPressed == null || now.difference(_lastBackPressed!) > const Duration(seconds: 2)) {
+          _lastBackPressed = now;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Tekan sekali lagi untuk keluar'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        } else {
+          SystemNavigator.pop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        appBar: AppBar(
+          backgroundColor: appBarColor,
+          elevation: 1,
+          shadowColor: Colors.black.withAlpha(50),
+          automaticallyImplyLeading: false,
+          title: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: onAppBarColor.withAlpha(20),
+              borderRadius: BorderRadius.circular(30),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Image.asset(
+                  'assets/images/unnes_logo.jpg',
+                  height: 28,
+                  errorBuilder: (c, e, s) => Icon(Icons.school, size: 28, color: onAppBarColor),
+                ),
+                const SizedBox(width: 12),
+                Text('Doswall', style: theme.textTheme.headlineSmall?.copyWith(
+                  color: onAppBarColor,
+                )),
+              ],
+            ),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Image.asset(
-                'assets/images/unnes_logo.jpg',
-                height: 28,
-                errorBuilder: (c, e, s) => Icon(Icons.school, size: 28, color: onAppBarColor),
-              ),
-              const SizedBox(width: 12),
-              Text('Doswall', style: theme.textTheme.headlineSmall?.copyWith(
-                color: onAppBarColor,
-              )),
-            ],
-          ),
+          actions: [
+            IconButton(
+              icon: Icon(isEffectivelyDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
+              tooltip: isEffectivelyDark ? 'Mode Terang' : 'Mode Gelap',
+              onPressed: () => themeNotifier.toggleTheme(isEffectivelyDark ? Brightness.dark : Brightness.light),
+              color: onAppBarColor,
+            ),
+            IconButton(
+              icon: const Icon(Icons.person_outline),
+              tooltip: 'Buka Profil',
+              onPressed: () => Navigator.pushNamed(context, '/profile'),
+              color: onAppBarColor,
+            ),
+          ],
         ),
-        actions: [
-          IconButton(
-            icon: Icon(isEffectivelyDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
-            tooltip: isEffectivelyDark ? 'Mode Terang' : 'Mode Gelap',
-            onPressed: () => themeNotifier.toggleTheme(isEffectivelyDark ? Brightness.dark : Brightness.light),
-            color: onAppBarColor,
-          ),
-          IconButton(
-            icon: const Icon(Icons.person_outline),
-            tooltip: 'Buka Profil',
-            onPressed: () => Navigator.pushNamed(context, '/profile'),
-            color: onAppBarColor,
-          ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          _buildArtisticBackground(context, isEffectivelyDark),
-          _buildPresenceTab(context),
-        ],
+        body: Stack(
+          children: [
+            _buildArtisticBackground(context, isEffectivelyDark),
+            _buildPresenceTab(context),
+          ],
+        ),
       ),
     );
   }
@@ -334,7 +380,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget _buildArtisticBackground(BuildContext context, bool isDark) {
     final primary = Theme.of(context).colorScheme.primary;
     final secondary = Theme.of(context).colorScheme.secondary;
-
     return Stack(
       children: [
         Positioned(
@@ -372,7 +417,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     Widget saveButton = AnimatedScale(
       duration: const Duration(milliseconds: 250),
       curve: Curves.easeOutBack,
-      scale: _isActive ? 1.0 : 0.0,
+      scale: (_isActive || _isNotesExpanded) ? 1.0 : 0.0,
       child: FloatingActionButton.extended(
         heroTag: 'fab_save',
         onPressed: _isFetchingLocation || _isSaving ? null : _saveData,
@@ -522,31 +567,45 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildPresenceDetailsCard(ThemeData theme) {
-    if (_currentLatLng == null) {
-      return Card(
-        color: theme.colorScheme.surfaceContainerHighest,
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Text(
-            "Aktifkan presensi untuk mendapatkan data lokasi.",
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodyMedium,
-          ),
+    if (_isActive) {
+      if (_currentLatLng == null) {
+        return const Padding(
+          padding: EdgeInsets.all(32.0),
+          child: Center(child: CircularProgressIndicator()),
+        );
+      }
+
+      return _SubtleEntryAnimator(
+        duration: const Duration(milliseconds: 500),
+        delay: const Duration(milliseconds: 150),
+        child: Column(
+          children: [
+            _buildStatusTile(theme),
+            const SizedBox(height: 16),
+            _buildLocationCard(theme),
+            const SizedBox(height: 16),
+            _buildNotesCard(theme),
+          ],
         ),
       );
-    }
-
-    return _SubtleEntryAnimator(
-      duration: const Duration(milliseconds: 500),
-      delay: const Duration(milliseconds: 150),
-      child: Column(
+    } else {
+      return Column(
         children: [
-          _buildStatusTile(theme),
+          _buildNotesCard(theme),
           const SizedBox(height: 16),
-          _buildLocationCard(theme),
+          Card(
+            color: theme.colorScheme.surfaceContainerHighest,
+            child: const Padding(
+              padding: EdgeInsets.all(24.0),
+              child: Text(
+                "Aktifkan presensi untuk mendapatkan data lokasi.",
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
         ],
-      ),
-    );
+      );
+    }
   }
 
   Widget _buildStatusTile(ThemeData theme) {
@@ -600,15 +659,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             padding: const EdgeInsets.fromLTRB(16, 16, 8, 4),
             child: Row(
               children: [
-                Expanded(child: Text('Lokasi & Catatan', style: theme.textTheme.titleLarge)),
-                if (_isFetchingLocation)
-                  const SizedBox(width: 24, height: 24, child: Padding(padding: EdgeInsets.all(4.0), child: CircularProgressIndicator(strokeWidth: 2)))
-                else
-                  IconButton(
+                Expanded(child: Text('Lokasi', style: theme.textTheme.titleLarge)),
+                Container(
+                  width: 48.0,
+                  height: 48.0,
+                  alignment: Alignment.center,
+                  child: _isFetchingLocation
+                      ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2.5),
+                  )
+                      : IconButton(
                     icon: const Icon(Icons.refresh_rounded),
                     tooltip: 'Ambil Ulang Lokasi',
                     onPressed: isInteractable ? () => _fetchLocationData(isNewActivation: false) : null,
                   ),
+                ),
               ],
             ),
           ),
@@ -616,47 +683,63 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             height: 180,
             child: _buildMapContent(theme, isInteractable),
           ),
-          Theme(
-            data: theme.copyWith(dividerColor: Colors.transparent),
-            child: ExpansionTile(
-              controller: _notesExpansionController,
-              onExpansionChanged: (isExpanding) {
-                if (isExpanding) {
-                  _notesFocusNode.requestFocus();
-                } else {
-                  _notesFocusNode.unfocus();
-                }
-              },
-              enabled: isInteractable,
-              leading: const Icon(Icons.note_alt_outlined),
-              title: const Text('Catatan Tambahan'),
-              subtitle: _notesController.text.isNotEmpty
-                  ? Text(_notesController.text, maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodySmall)
-                  : const Text('Ketuk untuk menambahkan catatan'),
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-                  child: TextField(
-                    focusNode: _notesFocusNode,
-                    controller: _notesController,
-                    decoration: InputDecoration(
-                      hintText: 'Tulis catatan Anda di sini...',
-                      suffixIcon: _storedNotes != null && _storedNotes!.isNotEmpty && _storedNotes != '-'
-                          ? IconButton(
-                        icon: const Icon(Icons.history_rounded),
-                        tooltip: 'Gunakan catatan sebelumnya',
-                        onPressed: isInteractable ? () => setState(() => _notesController.text = _storedNotes!) : null,
-                      )
-                          : null,
-                    ),
-                    maxLines: 3,
-                    textInputAction: TextInputAction.done,
-                  ),
-                ),
-              ],
-            ),
-          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildNotesCard(ThemeData theme) {
+    final bool isNotesInteractable = !_isSaving;
+    return Card(
+      elevation: 2,
+      margin: const EdgeInsets.symmetric(horizontal: 0),
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Theme(
+        data: theme.copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          key: _notesExpansionTileKey,
+          controller: _notesExpansionController,
+          onExpansionChanged: (isExpanding) {
+            setState(() {
+              _isNotesExpanded = isExpanding;
+            });
+            if (!isNotesInteractable) return;
+            if (isExpanding) {
+              _notesFocusNode.requestFocus();
+            } else {
+              _notesFocusNode.unfocus();
+            }
+          },
+          enabled: isNotesInteractable,
+          leading: const Icon(Icons.note_alt_outlined),
+          title: const Text('Catatan Tambahan'),
+          subtitle: _notesController.text.isNotEmpty
+              ? Text(_notesController.text, maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodySmall)
+              : const Text('Ketuk untuk menambahkan catatan'),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+              child: TextField(
+                focusNode: _notesFocusNode,
+                controller: _notesController,
+                enabled: isNotesInteractable,
+                decoration: InputDecoration(
+                  hintText: 'Tulis catatan Anda di sini...',
+                  suffixIcon: _storedNotes != null && _storedNotes!.isNotEmpty && _storedNotes != '-'
+                      ? IconButton(
+                    icon: const Icon(Icons.history_rounded),
+                    tooltip: 'Gunakan catatan sebelumnya',
+                    onPressed: isNotesInteractable ? () => setState(() => _notesController.text = _storedNotes!) : null,
+                  )
+                      : null,
+                ),
+                maxLines: 3,
+                textInputAction: TextInputAction.done,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -14,7 +14,7 @@ class AnnouncementService {
     if (userId == null) {
       throw Exception('User not logged in or token is missing.');
     }
-    final url = Uri.parse('${ApiConfig.announcementsUrl}/getbyuser/$userId');
+    final url = Uri.parse('${ApiConfig.announcementsUrl}/getbyuser/');
     final requestBody = {
       'appkey': ApiConfig.appKey,
       '_id': userId,
