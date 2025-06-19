@@ -24,6 +24,8 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
       duration: const Duration(milliseconds: 1500),
     )..forward();
 
+    _animationController.addListener(() => setState(() {}));
+
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _animationController, curve: const Interval(0.0, 0.7, curve: Curves.easeOut)),
     );
@@ -75,7 +77,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                     const SizedBox(height: 20),
                     Text('Doswall', style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 40),
-                    const CircularProgressIndicator(),
+                    CircularProgressIndicator(value: _animationController.value),
                     const SizedBox(height: 16),
                     Text('Memuat sesi...', style: theme.textTheme.bodyMedium),
                   ],
