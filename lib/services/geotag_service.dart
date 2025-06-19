@@ -5,26 +5,18 @@ import 'package:geolocator/geolocator.dart';
 import '../config/api_config.dart';
 import '../models/geotag_response.dart';
 import './api_client.dart';
+import './permission_service.dart';
 import './user_storage.dart';
 
 class GeotagService {
   static Future<GeotagResponse> fetchGeotagData() async {
     try {
-      bool isLocationServiceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!isLocationServiceEnabled) {
-        return GeotagResponse(success: false, message: 'Layanan lokasi tidak aktif. Mohon aktifkan GPS Anda.');
-      }
-
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          return GeotagResponse(success: false, message: 'Izin lokasi ditolak.');
-        }
-      }
-
-      if (permission == LocationPermission.deniedForever) {
-        return GeotagResponse(success: false, message: 'Izin lokasi ditolak permanen. Mohon aktifkan dari pengaturan aplikasi.');
+      final permissionResult = await LocationPermissionHandler.handle();
+      if (permissionResult != LocationPermissionResult.granted) {
+        return GeotagResponse(
+          success: false,
+          message: LocationPermissionHandler.getErrorMessage(permissionResult),
+        );
       }
 
       final LocationSettings locationSettings = LocationSettings(

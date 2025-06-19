@@ -1,10 +1,12 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 
 import '../enums/view_state.dart';
-import '../view_models/login_view_model.dart';
+import '../services/permission_service.dart';
 
+import '../view_models/login_view_model.dart';
 import '../providers/theme_notifier.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -33,6 +35,69 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
     _emailController.addListener(() => context.read<LoginViewModel>().resetState());
     _passwordController.addListener(() => context.read<LoginViewModel>().resetState());
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAndRequestLocationPermission();
+    });
+  }
+
+  Future<void> _checkAndRequestLocationPermission() async {
+    final result = await LocationPermissionHandler.handle();
+    if (result == LocationPermissionResult.granted || !mounted) return;
+
+    if (result == LocationPermissionResult.deniedForever) {
+      _showSettingsDialog();
+    } else {
+      _showPermissionInfoDialog();
+    }
+  }
+
+  void _showPermissionInfoDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Izin Lokasi Diperlukan'),
+        content: const Text('Aplikasi ini butuh akses lokasi untuk fitur presensi. Mohon izinkan akses saat diminta.'),
+        actions: [
+          TextButton(
+            child: const Text('Nanti'),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          ElevatedButton(
+            child: const Text('Coba Lagi'),
+            onPressed: () {
+              Navigator.of(context).pop();
+              _checkAndRequestLocationPermission();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSettingsDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Izin Ditolak Permanen'),
+        content: const Text('Anda perlu mengaktifkan izin lokasi secara manual di pengaturan aplikasi untuk dapat melanjutkan.'),
+        actions: [
+          TextButton(
+            child: const Text('Tutup'),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          ElevatedButton(
+            child: const Text('Buka Pengaturan'),
+            onPressed: () {
+              Navigator.of(context).pop();
+              Geolocator.openAppSettings();
+            },
+          ),
+        ],
+      ),
+    );
   }
 
   @override

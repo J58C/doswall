@@ -38,7 +38,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final ExpansibleController _notesExpansionController = ExpansibleController();
   bool _isNotesExpanded = false;
 
-
   @override
   void initState() {
     super.initState();

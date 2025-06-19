@@ -26,6 +26,9 @@ class MapCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final validSelectedLocation = (locationOptions.isNotEmpty && locationOptions.contains(selectedLocation))
+        ? selectedLocation
+        : (locationOptions.isNotEmpty ? locationOptions[0] : null);
 
     return Card(
       elevation: 2,
@@ -39,16 +42,11 @@ class MapCard extends StatelessWidget {
             child: Row(
               children: [
                 Expanded(child: Text('Lokasi', style: theme.textTheme.titleLarge)),
-                Container(
+                SizedBox(
                   width: 48.0,
                   height: 48.0,
-                  alignment: Alignment.center,
                   child: isFetchingLocation
-                      ? const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(strokeWidth: 2.5),
-                  )
+                      ? const Center(child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2.5)))
                       : IconButton(
                     icon: const Icon(Icons.refresh_rounded),
                     tooltip: 'Ambil Ulang Lokasi',
@@ -60,61 +58,52 @@ class MapCard extends StatelessWidget {
           ),
           SizedBox(
             height: 180,
-            child: _buildMapContent(theme),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMapContent(ThemeData theme) {
-    final validSelectedLocation = (locationOptions.isNotEmpty && locationOptions.contains(selectedLocation))
-        ? selectedLocation
-        : (locationOptions.isNotEmpty ? locationOptions[0] : null);
-
-    return Opacity(
-      opacity: isInteractable ? 1.0 : 0.6,
-      child: IgnorePointer(
-        ignoring: !isInteractable,
-        child: Stack(
-          children: [
-            if (currentLatLng != null)
-              FlutterMap(
-                options: MapOptions(
-                  initialCenter: currentLatLng!,
-                  initialZoom: 17.5,
-                  interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
-                ),
-                children: [
-                  TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', tileProvider: CancellableNetworkTileProvider()),
-                  MarkerLayer(markers: [Marker(point: currentLatLng!, width: 40, height: 40, child: Icon(Icons.location_pin, color: theme.colorScheme.error, size: 40))]),
-                ],
-              )
-            else
-              Container(color: theme.colorScheme.surfaceContainerHighest, child: const Center(child: Text('Data Peta Tidak Tersedia'))),
-
-            Positioned(
-              top: 10, left: 12, right: 12,
-              child: Material(
-                elevation: 4,
-                borderRadius: BorderRadius.circular(12),
-                child: DropdownButtonFormField<String>(
-                  value: validSelectedLocation,
-                  items: locationOptions.map((loc) => DropdownMenuItem<String>(value: loc, child: Text(loc, overflow: TextOverflow.ellipsis))).toList(),
-                  onChanged: onLocationChanged,
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: theme.cardColor.withAlpha(240),
-                    hintText: 'Pilih Lokasi Terdekat',
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  ),
+            child: Opacity(
+              opacity: isInteractable ? 1.0 : 0.6,
+              child: IgnorePointer(
+                ignoring: !isInteractable,
+                child: Stack(
+                  children: [
+                    if (currentLatLng != null)
+                      FlutterMap(
+                        options: MapOptions(
+                          initialCenter: currentLatLng!,
+                          initialZoom: 17.5,
+                          interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
+                        ),
+                        children: [
+                          TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', tileProvider: CancellableNetworkTileProvider()),
+                          MarkerLayer(markers: [Marker(point: currentLatLng!, width: 40, height: 40, child: Icon(Icons.location_pin, color: theme.colorScheme.error, size: 40))]),
+                        ],
+                      )
+                    else
+                      Container(color: theme.colorScheme.surfaceContainerHighest, child: const Center(child: Text('Data Peta Tidak Tersedia'))),
+                    Positioned(
+                      top: 10, left: 12, right: 12,
+                      child: Material(
+                        elevation: 4,
+                        borderRadius: BorderRadius.circular(12),
+                        child: DropdownButtonFormField<String>(
+                          value: validSelectedLocation,
+                          items: locationOptions.map((loc) => DropdownMenuItem<String>(value: loc, child: Text(loc, overflow: TextOverflow.ellipsis))).toList(),
+                          onChanged: onLocationChanged,
+                          decoration: InputDecoration(
+                            filled: true,
+                            fillColor: theme.cardColor.withAlpha(240),
+                            hintText: 'Pilih Lokasi Terdekat',
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
