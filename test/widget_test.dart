@@ -16,7 +16,6 @@ import 'package:doswall/view_models/profile_view_model.dart';
 import 'package:doswall/view_models/splash_view_model.dart';
 import 'package:doswall/services/announcement_service.dart';
 
-// Helper function tidak diubah, sudah benar.
 Widget createTestAppWidget({required Widget child, required ThemeNotifier themeNotifier}) {
   return MultiProvider(
     providers: [
@@ -50,7 +49,6 @@ void main() {
       final themeNotifier = await ThemeNotifier.create();
       await tester.pumpWidget(createTestAppWidget(child: const SplashScreen(), themeNotifier: themeNotifier));
       await tester.pumpAndSettle();
-
       expect(find.byType(LoginScreen), findsOneWidget);
     });
 
@@ -61,7 +59,6 @@ void main() {
       final themeNotifier = await ThemeNotifier.create();
       await tester.pumpWidget(createTestAppWidget(child: const SplashScreen(), themeNotifier: themeNotifier));
       await tester.pumpAndSettle();
-
       expect(find.byType(HomeScreen), findsOneWidget);
     });
   });
@@ -71,7 +68,6 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final themeNotifier = await ThemeNotifier.create();
       final loginViewModel = LoginViewModel();
-
       await tester.pumpWidget(
         MultiProvider(
           providers: [
