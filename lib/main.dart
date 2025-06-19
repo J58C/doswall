@@ -4,17 +4,25 @@ import 'package:provider/provider.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'dart:async';
 
-import '../providers/theme_notifier.dart';
-import '../theme/app_theme.dart';
-import '../screens/splash_screen.dart';
-import '../screens/login_screen.dart';
-import '../screens/home_screen.dart';
-import '../screens/forgot_password_screen.dart';
-import '../screens/announcements_screen.dart';
-import '../screens/change_password_screen.dart';
-import '../screens/profile_screen.dart';
+import 'screens/splash_screen.dart';
+import 'screens/login_screen.dart';
+import 'screens/home_screen.dart';
+import 'screens/forgot_password_screen.dart';
+import 'screens/announcements_screen.dart';
+import 'screens/change_password_screen.dart';
+import 'screens/profile_screen.dart';
 
-import '../services/api_client.dart';
+import 'view_models/login_view_model.dart';
+import 'view_models/forgot_password_view_model.dart';
+import 'view_models/change_password_view_model.dart';
+import 'view_models/announcements_view_model.dart';
+import 'view_models/profile_view_model.dart';
+import 'view_models/splash_view_model.dart';
+
+import 'services/announcement_service.dart';
+import 'services/api_client.dart';
+import 'providers/theme_notifier.dart';
+import 'theme/app_theme.dart';
 
 @pragma('vm:entry-point')
 void onStart(ServiceInstance service) {
@@ -55,8 +63,17 @@ Future<void> main() async {
   final themeNotifier = await ThemeNotifier.create();
 
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => themeNotifier,
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => themeNotifier),
+        ChangeNotifierProvider(create: (_) => LoginViewModel()),
+        ChangeNotifierProvider(create: (_) => ForgotPasswordViewModel()),
+        ChangeNotifierProvider(create: (_) => ChangePasswordViewModel()),
+        ChangeNotifierProvider(create: (_) => ChangePasswordViewModel()),
+        ChangeNotifierProvider(create: (_) => AnnouncementsViewModel(service: AnnouncementService()),),
+        ChangeNotifierProvider(create: (_) => ProfileViewModel()),
+        ChangeNotifierProvider(create: (_) => SplashViewModel()),
+      ],
       child: const MyApp(),
     ),
   );
