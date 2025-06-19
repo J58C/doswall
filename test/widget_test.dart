@@ -82,7 +82,10 @@ void main() {
 
       await tester.enterText(find.byKey(const Key('login_email_field')), 'salah@email.com');
       await tester.enterText(find.byKey(const Key('login_password_field')), 'passwordsalah');
+      final loginButton = find.widgetWithText(ElevatedButton, 'Login');
       await tester.tap(find.widgetWithText(ElevatedButton, 'Login'));
+      await tester.pumpAndSettle();
+      await tester.tap(loginButton);
       await tester.pumpAndSettle();
       expect(find.text('Email atau password salah'), findsOneWidget);
     });
