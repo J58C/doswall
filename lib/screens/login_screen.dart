@@ -200,6 +200,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   Widget _buildPasswordField(BuildContext context, LoginViewModel loginViewModel) {
     final bool isLoading = loginViewModel.state == ViewState.loading;
     return TextFormField(
+      key: const Key('login_password_field'),
       controller: _passwordController,
       obscureText: _obscure,
       textInputAction: TextInputAction.done,
@@ -279,6 +280,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     return Column(children: [ Icon(Icons.school_outlined, size: 48, color: Theme.of(context).colorScheme.primary), const SizedBox(height: 16), Text('Selamat Datang', style: textTheme.headlineSmall, textAlign: TextAlign.center), const SizedBox(height: 4), Text('Masuk untuk melanjutkan ke sistem presensi.', style: textTheme.bodyMedium, textAlign: TextAlign.center)]);
   }
   Widget _buildEmailField(BuildContext context) {
-    return TextFormField(controller: _emailController, keyboardType: TextInputType.emailAddress, textInputAction: TextInputAction.next, decoration: const InputDecoration(labelText: 'Email', prefixIcon: Icon(Icons.email_outlined)), validator: (value) { if (value == null || value.isEmpty) { return 'Email tidak boleh kosong'; } final emailRegex = RegExp(r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+"); if (!emailRegex.hasMatch(value)) { return 'Format email tidak valid'; } return null; });
+    return TextFormField(key: const Key('login_email_field'), controller: _emailController, keyboardType: TextInputType.emailAddress, textInputAction: TextInputAction.next, decoration: const InputDecoration(labelText: 'Email', prefixIcon: Icon(Icons.email_outlined)), validator: (value) { if (value == null || value.isEmpty) { return 'Email tidak boleh kosong'; } final emailRegex = RegExp(r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+"); if (!emailRegex.hasMatch(value)) { return 'Format email tidak valid'; } return null; });
   }
 }
