@@ -123,10 +123,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _toggleActive(bool value) async {
     if (value) {
-      final bool permissionGranted = await PermissionService.handleLocationPermission(context);
-      if (!mounted || !permissionGranted) {
+      final LocationPermissionResult permissionResult = await LocationPermissionHandler.handle();
+      if (permissionResult != LocationPermissionResult.granted) {
+        if (mounted) {
+          final String errorMessage = LocationPermissionHandler.getErrorMessage(permissionResult);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(errorMessage)),
+          );
+        }
         return;
       }
+      if (!mounted) return;
       setState(() => _isActive = true);
       _fetchLocationData(isNewActivation: true);
     } else {
