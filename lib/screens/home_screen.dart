@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../services/user_storage.dart';
 import '../services/geotag_service.dart';
 import '../services/profile_service.dart';
+import '../services/permission_service.dart';
 import '../models/geotag_response.dart';
 import '../models/profile_response.dart';
 import '../providers/theme_notifier.dart';
@@ -97,24 +98,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _loadUser() async {
     final user = await UserStorage.getUser();
     if (!mounted) return;
-
     final isServiceRunning = await service.isRunning();
-
     setState(() {
       _user = user;
       _isActive = isServiceRunning;
-
       final lat = user['lat'] as double?;
       final long = user['long'] as double?;
       if (lat != null && long != null) {
         _currentLatLng = LatLng(lat, long);
       }
-
       final options = user['location_options'] as List?;
       if (options != null) {
         _locationOptions = List<String>.from(options);
       }
-
       _selectedLocation = user['geotag'] as String?;
       _storedNotes = user['notes'] as String?;
       if (_storedNotes != null && _storedNotes != '-') {
@@ -125,33 +121,31 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     });
   }
 
-  void _toggleActive(bool value) {
+  Future<void> _toggleActive(bool value) async {
     if (value) {
+      final bool permissionGranted = await PermissionService.handleLocationPermission(context);
+      if (!mounted || !permissionGranted) {
+        return;
+      }
       setState(() => _isActive = true);
-      service.startService();
       _fetchLocationData(isNewActivation: true);
     } else {
       _showConfirmationDialog(
         title: 'Nonaktifkan Presensi?',
         content: 'Layanan di latar belakang akan dihentikan dan status Anda menjadi "Unavailable". Lanjutkan?',
         onConfirm: () async {
-          service.invoke("stopService");
-
           final updatedUser = Map<String, dynamic>.from(_user!)
             ..['geotag'] = '-'
             ..['status'] = 0
             ..remove('lat')
             ..remove('long')
             ..remove('location_options');
-
           await UserStorage.saveUser(updatedUser);
-
           try {
             await ProfileService.updateUserProfile();
           } catch (e) {
             debugPrint("Gagal menyinkronkan status nonaktif: $e");
           }
-
           if (!mounted) return;
           setState(() {
             _isActive = false;
@@ -723,8 +717,7 @@ class _SubtleEntryAnimator extends StatefulWidget {
   State<_SubtleEntryAnimator> createState() => _SubtleEntryAnimatorState();
 }
 
-class _SubtleEntryAnimatorState extends State<_SubtleEntryAnimator>
-    with SingleTickerProviderStateMixin {
+class _SubtleEntryAnimatorState extends State<_SubtleEntryAnimator> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _opacity;
   late Animation<Offset> _slide;
@@ -736,21 +729,18 @@ class _SubtleEntryAnimatorState extends State<_SubtleEntryAnimator>
       vsync: this,
       duration: widget.duration,
     );
-
     _opacity = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
         curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
       ),
     );
-
     _slide = Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
       CurvedAnimation(
         parent: _controller,
         curve: const Interval(0.0, 1.0, curve: Curves.easeOut),
       ),
     );
-
     Future.delayed(widget.delay, () {
       if (mounted) {
         _controller.forward();
