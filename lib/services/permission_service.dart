@@ -1,43 +1,43 @@
-import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:geolocator/geolocator.dart';
 
-class PermissionService {
-  static Future<bool> handleLocationPermission(BuildContext context) async {
-    var status = await Permission.location.status;
-    if (status.isGranted) {
-      return true;
+enum LocationPermissionResult {
+  granted,
+  serviceDisabled,
+  denied,
+  deniedForever,
+}
+
+class LocationPermissionHandler {
+  static Future<LocationPermissionResult> handle() async {
+    bool isLocationServiceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!isLocationServiceEnabled) {
+      return LocationPermissionResult.serviceDisabled;
     }
-    if (status.isPermanentlyDenied) {
-      if (context.mounted) {
-        _showSettingsDialog(context);
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        return LocationPermissionResult.denied;
       }
-      return false;
     }
-    var result = await Permission.location.request();
-    return result.isGranted;
+
+    if (permission == LocationPermission.deniedForever) {
+      return LocationPermissionResult.deniedForever;
+    }
+    return LocationPermissionResult.granted;
   }
 
-  static void _showSettingsDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) => AlertDialog(
-        title: const Text('Izin Diperlukan'),
-        content: const Text(
-            'Aplikasi ini memerlukan izin lokasi untuk berfungsi. Silakan aktifkan izin di pengaturan aplikasi.'),
-        actions: <Widget>[
-          TextButton(
-            child: const Text('Batal'),
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-          TextButton(
-            child: const Text('Buka Pengaturan'),
-            onPressed: () {
-              Navigator.of(context).pop();
-              openAppSettings();
-            },
-          ),
-        ],
-      ),
-    );
+  static String getErrorMessage(LocationPermissionResult result) {
+    switch (result) {
+      case LocationPermissionResult.serviceDisabled:
+        return 'Layanan lokasi tidak aktif. Mohon aktifkan GPS Anda.';
+      case LocationPermissionResult.denied:
+        return 'Izin lokasi ditolak.';
+      case LocationPermissionResult.deniedForever:
+        return 'Izin lokasi ditolak permanen. Mohon aktifkan dari pengaturan aplikasi.';
+      default:
+        return 'Izin lokasi diberikan.';
+    }
   }
 }

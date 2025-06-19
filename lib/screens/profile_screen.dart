@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../services/user_storage.dart';
+import '../enums/view_state.dart';
+import '../view_models/profile_view_model.dart';
+
 import '../providers/theme_notifier.dart';
 import './login_screen.dart';
 
@@ -13,23 +15,12 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  Map<String, dynamic>? _user;
-  bool _isLoading = true;
-
   @override
   void initState() {
     super.initState();
-    _loadUser();
-  }
-
-  Future<void> _loadUser() async {
-    final user = await UserStorage.getUser();
-    if (mounted) {
-      setState(() {
-        _user = user;
-        _isLoading = false;
-      });
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ProfileViewModel>().loadUser();
+    });
   }
 
   void _logout() {
@@ -49,13 +40,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               foregroundColor: Theme.of(context).colorScheme.onError,
             ),
             onPressed: () async {
-              final navigator = Navigator.of(context);
-              await UserStorage.clearUser();
+              await context.read<ProfileViewModel>().logout();
 
-              await navigator.pushAndRemoveUntil(
-                MaterialPageRoute(builder: (context) => const LoginScreen()),
-                    (Route<dynamic> route) => false,
-              );
+              if (mounted) {
+                Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (context) => const LoginScreen()),
+                      (Route<dynamic> route) => false,
+                );
+              }
             },
             child: const Text('Keluar'),
           ),
@@ -70,8 +62,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final viewModel = context.watch<ProfileViewModel>();
     final theme = Theme.of(context);
-    final themeNotifier = Provider.of<ThemeNotifier>(context);
+    final themeNotifier = context.watch<ThemeNotifier>();
     final isDark = theme.brightness == Brightness.dark;
 
     Color appBarColor = isDark ? theme.colorScheme.surface : theme.colorScheme.primary;
@@ -87,7 +80,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         actions: [
           IconButton(
             icon: Icon(isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
-            tooltip: isDark ? 'Mode Terang' : 'Mode Gelap',
             onPressed: () => themeNotifier.toggleTheme(theme.brightness),
             color: onAppBarColor,
           ),
@@ -96,64 +88,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: Stack(
         children: [
           _buildArtisticBackground(context, isDark),
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : _buildProfileContent(context),
+          _buildBody(viewModel),
         ],
       ),
     );
   }
 
-  Widget _buildArtisticBackground(BuildContext context, bool isDark) {
-    final primary = Theme.of(context).colorScheme.primary;
-    final secondary = Theme.of(context).colorScheme.secondary;
-
-    return Stack(
-      children: [
-        Positioned(
-          top: -120,
-          right: -180,
-          child: Container(
-            width: 350,
-            height: 350,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: primary.withAlpha(isDark ? 30 : 50),
-            ),
-          ),
-        ),
-        Positioned(
-          bottom: -150,
-          left: -100,
-          child: Container(
-            width: 320,
-            height: 320,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: secondary.withAlpha(isDark ? 35 : 55),
-            ),
-          ),
-        ),
-      ],
-    );
+  Widget _buildBody(ProfileViewModel viewModel) {
+    switch (viewModel.state) {
+      case ViewState.loading:
+        return const Center(child: CircularProgressIndicator());
+      case ViewState.error:
+        return Center(child: Text(viewModel.errorMessage));
+      case ViewState.success:
+        return _buildProfileContent(context, viewModel);
+      default:
+        return const SizedBox.shrink();
+    }
   }
 
-  Widget _buildProfileContent(BuildContext context) {
-    if (_user == null) {
-      return const Center(child: Text('Gagal memuat data pengguna.'));
-    }
-
+  Widget _buildProfileContent(BuildContext context, ProfileViewModel viewModel) {
     return ListView(
       padding: const EdgeInsets.all(16.0),
       children: [
-        _buildProfileHeader(Theme.of(context)),
+        _buildProfileHeader(Theme.of(context), viewModel),
         const SizedBox(height: 24),
         _buildActionList(Theme.of(context)),
       ],
     );
   }
 
-  Widget _buildProfileHeader(ThemeData theme) {
+  Widget _buildProfileHeader(ThemeData theme, ProfileViewModel viewModel) {
+    final user = viewModel.user!;
     return Card(
       elevation: 4,
       shadowColor: Colors.black.withAlpha(25),
@@ -165,34 +131,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
             CircleAvatar(
               radius: 50,
               backgroundColor: theme.colorScheme.primaryContainer,
-              child: Icon(
-                Icons.person_outline,
-                size: 56,
-                color: theme.colorScheme.onPrimaryContainer,
-              ),
+              child: Icon(Icons.person_outline, size: 56, color: theme.colorScheme.onPrimaryContainer),
             ),
             const SizedBox(height: 16),
-            Text(
-              _user!['name'] ?? 'Pengguna',
-              style: theme.textTheme.headlineMedium,
-              textAlign: TextAlign.center,
-            ),
+            Text(user['name'] ?? 'Pengguna', style: theme.textTheme.headlineMedium, textAlign: TextAlign.center),
             const SizedBox(height: 4),
-            Text(
-              _user!['email'] ?? '-',
-              style: theme.textTheme.bodyLarge?.copyWith(
-                color: theme.colorScheme.onSurface.withAlpha(180),
-              ),
-            ),
+            Text(user['email'] ?? '-', style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.onSurface.withAlpha(180))),
             const SizedBox(height: 12),
             Chip(
-              label: Text(
-                (_user!['role'] as String?)?.toUpperCase() ?? 'USER',
-              ),
+              label: Text((user['role'] as String?)?.toUpperCase() ?? 'USER'),
               backgroundColor: theme.colorScheme.tertiaryContainer,
-              labelStyle: theme.textTheme.labelLarge?.copyWith(
-                color: theme.colorScheme.onTertiaryContainer,
-              ),
+              labelStyle: theme.textTheme.labelLarge?.copyWith(color: theme.colorScheme.onTertiaryContainer),
               side: BorderSide.none,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             ),
@@ -204,8 +153,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildActionList(ThemeData theme) {
     return Card(
-      elevation: 2,
-      shadowColor: Colors.black.withAlpha(15),
+      elevation: 2, shadowColor: Colors.black.withAlpha(15),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -227,5 +175,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ],
       ),
     );
+  }
+  Widget _buildArtisticBackground(BuildContext context, bool isDark) {
+    final primary = Theme.of(context).colorScheme.primary;
+    final secondary = Theme.of(context).colorScheme.secondary;
+    return Stack(children: [ Positioned(top: -120, right: -180, child: Container(width: 350, height: 350, decoration: BoxDecoration(shape: BoxShape.circle, color: primary.withAlpha(isDark ? 30 : 50)))), Positioned(bottom: -150, left: -100, child: Container(width: 320, height: 320, decoration: BoxDecoration(shape: BoxShape.circle, color: secondary.withAlpha(isDark ? 35 : 55))))]);
   }
 }

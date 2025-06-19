@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_tile_provider.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
@@ -14,6 +12,7 @@ import '../models/geotag_response.dart';
 import '../models/profile_response.dart';
 import '../providers/theme_notifier.dart';
 import '../theme/custom_colors.dart';
+import '../widgets/map_card.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -568,7 +567,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           child: Center(child: CircularProgressIndicator()),
         );
       }
-
       return _SubtleEntryAnimator(
         duration: const Duration(milliseconds: 500),
         delay: const Duration(milliseconds: 150),
@@ -576,7 +574,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           children: [
             _buildStatusTile(theme),
             const SizedBox(height: 16),
-            _buildLocationCard(theme),
+            MapCard(
+              currentLatLng: _currentLatLng,
+              locationOptions: _locationOptions,
+              selectedLocation: _selectedLocation,
+              isFetchingLocation: _isFetchingLocation,
+              isInteractable: _isActive && !_isFetchingLocation,
+              onRefresh: () => _fetchLocationData(isNewActivation: false),
+              onLocationChanged: (val) => setState(() => _selectedLocation = val),
+            ),
             const SizedBox(height: 16),
             _buildNotesCard(theme),
           ],
@@ -639,49 +645,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildLocationCard(ThemeData theme) {
-    final bool isInteractable = _isActive && !_isFetchingLocation;
-
-    return Card(
-      elevation: 2,
-      margin: const EdgeInsets.symmetric(horizontal: 0),
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 8, 4),
-            child: Row(
-              children: [
-                Expanded(child: Text('Lokasi', style: theme.textTheme.titleLarge)),
-                Container(
-                  width: 48.0,
-                  height: 48.0,
-                  alignment: Alignment.center,
-                  child: _isFetchingLocation
-                      ? const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(strokeWidth: 2.5),
-                  )
-                      : IconButton(
-                    icon: const Icon(Icons.refresh_rounded),
-                    tooltip: 'Ambil Ulang Lokasi',
-                    onPressed: isInteractable ? () => _fetchLocationData(isNewActivation: false) : null,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(
-            height: 180,
-            child: _buildMapContent(theme, isInteractable),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildNotesCard(ThemeData theme) {
     final bool isNotesInteractable = !_isSaving;
     return Card(
@@ -730,58 +693,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ),
                 maxLines: 3,
                 textInputAction: TextInputAction.done,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMapContent(ThemeData theme, bool isInteractable) {
-    final validSelectedLocation = (_locationOptions.isNotEmpty && _locationOptions.contains(_selectedLocation))
-        ? _selectedLocation
-        : (_locationOptions.isNotEmpty ? _locationOptions[0] : null);
-
-    return Opacity(
-      opacity: isInteractable ? 1.0 : 0.6,
-      child: IgnorePointer(
-        ignoring: !isInteractable,
-        child: Stack(
-          children: [
-            if (_currentLatLng != null)
-              FlutterMap(
-                options: MapOptions(
-                  initialCenter: _currentLatLng!,
-                  initialZoom: 17.5,
-                  interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
-                ),
-                children: [
-                  TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', tileProvider: CancellableNetworkTileProvider()),
-                  MarkerLayer(markers: [Marker(point: _currentLatLng!, width: 40, height: 40, child: Icon(Icons.location_pin, color: theme.colorScheme.error, size: 40))]),
-                ],
-              )
-            else
-              Container(color: theme.colorScheme.surfaceContainerHighest, child: const Center(child: Text('Data Peta Tidak Tersedia'))),
-
-            Positioned(
-              top: 10, left: 12, right: 12,
-              child: Material(
-                elevation: 4,
-                borderRadius: BorderRadius.circular(12),
-                child: DropdownButtonFormField<String>(
-                  value: validSelectedLocation,
-                  items: _locationOptions.map((loc) => DropdownMenuItem<String>(value: loc, child: Text(loc, overflow: TextOverflow.ellipsis))).toList(),
-                  onChanged: (val) => setState(() => _selectedLocation = val),
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: theme.cardColor.withAlpha(240),
-                    hintText: 'Pilih Lokasi Terdekat',
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  ),
-                ),
               ),
             ),
           ],

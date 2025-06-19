@@ -4,13 +4,16 @@
 <dict>
     <key>UIBackgroundModes</key>
     <array>
+        <string>location</string>
         <string>processing</string>
         <string>fetch</string>
     </array>
     <key>NSLocationWhenInUseUsageDescription</key>
-    <string>Aplikasi ini memerlukan akses lokasi untuk mencatat kehadiran Anda di tempat yang ditentukan.</string>
+    <string>Aplikasi ini memerlukan akses lokasi untuk menentukan posisi Anda saat melakukan presensi.</string>
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-    <string>Aplikasi ini memerlukan akses lokasi di latar belakang untuk menjaga status presensi Anda tetap aktif.</string>
+    <string>Aplikasi ini memerlukan akses lokasi di latar belakang agar layanan presensi tetap berjalan akurat bahkan saat aplikasi ditutup.</string>
+    <key>NSLocationAlwaysUsageDescription</key>
+    <string>Aplikasi ini memerlukan akses lokasi di latar belakang agar layanan presensi tetap berjalan akurat bahkan saat aplikasi ditutup.</string>
 
     <key>CFBundleDevelopmentRegion</key>
     <string>$(DEVELOPMENT_LANGUAGE)</string>

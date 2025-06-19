@@ -1,11 +1,12 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 
-import '../services/auth_service.dart';
-import '../services/user_storage.dart';
+import '../enums/view_state.dart';
 import '../services/permission_service.dart';
-import '../models/auth_response.dart';
+
+import '../view_models/login_view_model.dart';
 import '../providers/theme_notifier.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -20,10 +21,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
-  bool _loading = false;
   bool _obscure = true;
-  String? _loginError;
-
   late final AnimationController _animController;
   late final Animation<double> _fadeAnimation;
   late final Animation<Offset> _slideAnimation;
@@ -31,45 +29,80 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   @override
   void initState() {
     super.initState();
-    _animController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    );
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0)
-        .animate(CurvedAnimation(parent: _animController, curve: const Interval(0.3, 1.0, curve: Curves.easeOut)));
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.2),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic));
+    _animController = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))..forward();
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _animController, curve: const Interval(0.3, 1.0, curve: Curves.easeOut)));
+    _slideAnimation = Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero).animate(CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic));
 
-    _animController.forward();
-    _emailController.addListener(_clearError);
-    _passwordController.addListener(_clearError);
+    _emailController.addListener(() => context.read<LoginViewModel>().resetState());
+    _passwordController.addListener(() => context.read<LoginViewModel>().resetState());
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkPermissionOnStartup();
+      _checkAndRequestLocationPermission();
     });
   }
 
-  Future<void> _checkPermissionOnStartup() async {
-    if (mounted) {
-      await PermissionService.handleLocationPermission(context);
+  Future<void> _checkAndRequestLocationPermission() async {
+    final result = await LocationPermissionHandler.handle();
+    if (result == LocationPermissionResult.granted || !mounted) return;
+
+    if (result == LocationPermissionResult.deniedForever) {
+      _showSettingsDialog();
+    } else {
+      _showPermissionInfoDialog();
     }
   }
 
-  void _clearError() {
-    if (_loginError != null) {
-      setState(() {
-        _loginError = null;
-      });
-    }
+  void _showPermissionInfoDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Izin Lokasi Diperlukan'),
+        content: const Text('Aplikasi ini butuh akses lokasi untuk fitur presensi. Mohon izinkan akses saat diminta.'),
+        actions: [
+          TextButton(
+            child: const Text('Nanti'),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          ElevatedButton(
+            child: const Text('Coba Lagi'),
+            onPressed: () {
+              Navigator.of(context).pop();
+              _checkAndRequestLocationPermission();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSettingsDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Izin Ditolak Permanen'),
+        content: const Text('Anda perlu mengaktifkan izin lokasi secara manual di pengaturan aplikasi untuk dapat melanjutkan.'),
+        actions: [
+          TextButton(
+            child: const Text('Tutup'),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          ElevatedButton(
+            child: const Text('Buka Pengaturan'),
+            onPressed: () {
+              Navigator.of(context).pop();
+              Geolocator.openAppSettings();
+            },
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   void dispose() {
     _animController.dispose();
-    _emailController.removeListener(_clearError);
-    _passwordController.removeListener(_clearError);
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -77,41 +110,22 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
-
     FocusScope.of(context).unfocus();
-    setState(() => _loading = true);
 
-    try {
-      final AuthResponse result = await AuthService.login(
-        _emailController.text.trim(),
-        _passwordController.text.trim(),
-      );
-      if (!mounted) return;
-      if (result.success && result.userData != null) {
-        await UserStorage.saveUser(result.userData!);
-        if (mounted) {
-          Navigator.pushReplacementNamed(context, '/home');
-        }
-      } else {
-        setState(() {
-          _loginError = result.message ?? 'Email atau password salah.';
-        });
-      }
-    } catch(e) {
-      setState(() {
-        _loginError = 'Tidak dapat terhubung ke server.';
-      });
-    } finally {
-      if(mounted) {
-        setState(() => _loading = false);
-      }
-    }
+    await context.read<LoginViewModel>().login(
+      email: _emailController.text.trim(),
+      password: _passwordController.text.trim(),
+      onSuccess: () {
+        if (mounted) Navigator.pushReplacementNamed(context, '/home');
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final loginViewModel = context.watch<LoginViewModel>();
+    final themeNotifier = context.watch<ThemeNotifier>();
     final theme = Theme.of(context);
-    final themeNotifier = Provider.of<ThemeNotifier>(context);
     final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
@@ -120,11 +134,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         children: [
           _buildArtisticBackground(context, isDark),
           Positioned(
-            top: 40,
-            right: 16,
+            top: 40, right: 16,
             child: IconButton(
               icon: Icon(isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
-              tooltip: isDark ? 'Mode Terang' : 'Mode Gelap',
               onPressed: () => themeNotifier.toggleTheme(theme.brightness),
             ),
           ),
@@ -135,7 +147,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                 opacity: _fadeAnimation,
                 child: SlideTransition(
                   position: _slideAnimation,
-                  child: _buildGlassmorphismCard(context),
+                  child: _buildGlassmorphismCard(context, loginViewModel),
                 ),
               ),
             ),
@@ -145,42 +157,10 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     );
   }
 
-  Widget _buildArtisticBackground(BuildContext context, bool isDark) {
-    final primary = Theme.of(context).colorScheme.primary;
-    final secondary = Theme.of(context).colorScheme.secondary;
-    return Stack(
-      children: [
-        Positioned(
-          top: -100,
-          left: -100,
-          child: Container(
-            width: 300,
-            height: 300,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: primary.withAlpha((255 * (isDark ? 0.2 : 0.3)).round()),
-            ),
-          ),
-        ),
-        Positioned(
-          bottom: -150,
-          right: -150,
-          child: Container(
-            width: 400,
-            height: 400,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: secondary.withAlpha((255 * (isDark ? 0.25 : 0.35)).round()),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildGlassmorphismCard(BuildContext context) {
+  Widget _buildGlassmorphismCard(BuildContext context, LoginViewModel loginViewModel) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(24),
       child: BackdropFilter(
@@ -202,13 +182,13 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                 const SizedBox(height: 32),
                 _buildEmailField(context),
                 const SizedBox(height: 16),
-                _buildPasswordField(context),
+                _buildPasswordField(context, loginViewModel),
                 const SizedBox(height: 12),
-                _buildForgotPassword(context),
+                _buildForgotPassword(context, loginViewModel),
                 const SizedBox(height: 24),
-                _buildErrorMessage(),
+                _buildErrorMessage(loginViewModel),
                 const SizedBox(height: 8),
-                _buildLoginButton(context),
+                _buildLoginButton(context, loginViewModel),
               ],
             ),
           ),
@@ -217,47 +197,13 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Column(
-      children: [
-        Icon(Icons.school_outlined, size: 48, color: Theme.of(context).colorScheme.primary),
-        const SizedBox(height: 16),
-        Text('Selamat Datang', style: textTheme.headlineSmall, textAlign: TextAlign.center),
-        const SizedBox(height: 4),
-        Text('Masuk untuk melanjutkan ke sistem presensi.', style: textTheme.bodyMedium, textAlign: TextAlign.center),
-      ],
-    );
-  }
-
-  Widget _buildEmailField(BuildContext context) {
-    return TextFormField(
-      controller: _emailController,
-      keyboardType: TextInputType.emailAddress,
-      textInputAction: TextInputAction.next,
-      decoration: const InputDecoration(
-        labelText: 'Email',
-        prefixIcon: Icon(Icons.email_outlined),
-      ),
-      validator: (value) {
-        if (value == null || value.isEmpty) {
-          return 'Email tidak boleh kosong';
-        }
-        final emailRegex = RegExp(r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+");
-        if (!emailRegex.hasMatch(value)) {
-          return 'Format email tidak valid';
-        }
-        return null;
-      },
-    );
-  }
-
-  Widget _buildPasswordField(BuildContext context) {
+  Widget _buildPasswordField(BuildContext context, LoginViewModel loginViewModel) {
+    final bool isLoading = loginViewModel.state == ViewState.loading;
     return TextFormField(
       controller: _passwordController,
       obscureText: _obscure,
       textInputAction: TextInputAction.done,
-      onFieldSubmitted: _loading ? null : (_) => _login(),
+      onFieldSubmitted: isLoading ? null : (_) => _login(),
       decoration: InputDecoration(
         labelText: 'Password',
         prefixIcon: const Icon(Icons.lock_outline),
@@ -266,30 +212,27 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           onPressed: () => setState(() => _obscure = !_obscure),
         ),
       ),
-      validator: (value) {
-        if (value == null || value.isEmpty) {
-          return 'Password tidak boleh kosong';
-        }
-        return null;
-      },
+      validator: (value) { if (value == null || value.isEmpty) { return 'Password tidak boleh kosong'; } return null; },
     );
   }
 
-  Widget _buildForgotPassword(BuildContext context) {
+  Widget _buildForgotPassword(BuildContext context, LoginViewModel loginViewModel) {
+    final bool isLoading = loginViewModel.state == ViewState.loading;
     return Align(
       alignment: Alignment.centerRight,
       child: TextButton(
-        onPressed: _loading ? null : () => Navigator.pushNamed(context, '/forgot'),
+        onPressed: isLoading ? null : () => Navigator.pushNamed(context, '/forgot'),
         child: const Text('Lupa Password?'),
       ),
     );
   }
 
-  Widget _buildErrorMessage() {
+  Widget _buildErrorMessage(LoginViewModel loginViewModel) {
+    final bool isError = loginViewModel.state == ViewState.error;
     return AnimatedOpacity(
       duration: const Duration(milliseconds: 300),
-      opacity: _loginError != null ? 1.0 : 0.0,
-      child: _loginError == null
+      opacity: isError ? 1.0 : 0.0,
+      child: !isError
           ? const SizedBox(height: 48)
           : Container(
         width: double.infinity,
@@ -303,37 +246,39 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           children: [
             Icon(Icons.error_outline, color: Theme.of(context).colorScheme.onErrorContainer),
             const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                _loginError ?? '',
-                style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer),
-              ),
-            ),
+            Expanded(child: Text(loginViewModel.errorMessage, style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer))),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildLoginButton(BuildContext context) {
+  Widget _buildLoginButton(BuildContext context, LoginViewModel loginViewModel) {
+    final bool isLoading = loginViewModel.state == ViewState.loading;
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
         style: Theme.of(context).elevatedButtonTheme.style?.copyWith(
           padding: WidgetStateProperty.all(const EdgeInsets.symmetric(vertical: 16)),
         ),
-        onPressed: _loading ? null : _login,
-        child: _loading
-            ? const SizedBox(
-          width: 24,
-          height: 24,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: Colors.white,
-          ),
-        )
+        onPressed: isLoading ? null : _login,
+        child: isLoading
+            ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
             : const Text('Login'),
       ),
     );
+  }
+
+  Widget _buildArtisticBackground(BuildContext context, bool isDark) {
+    final primary = Theme.of(context).colorScheme.primary;
+    final secondary = Theme.of(context).colorScheme.secondary;
+    return Stack(children: [ Positioned(top: -100, left: -100, child: Container(width: 300, height: 300, decoration: BoxDecoration(shape: BoxShape.circle, color: primary.withAlpha((255 * (isDark ? 0.2 : 0.3)).round())))), Positioned(bottom: -150, right: -150, child: Container(width: 400, height: 400, decoration: BoxDecoration(shape: BoxShape.circle, color: secondary.withAlpha((255 * (isDark ? 0.25 : 0.35)).round()))))]);
+  }
+  Widget _buildHeader(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Column(children: [ Icon(Icons.school_outlined, size: 48, color: Theme.of(context).colorScheme.primary), const SizedBox(height: 16), Text('Selamat Datang', style: textTheme.headlineSmall, textAlign: TextAlign.center), const SizedBox(height: 4), Text('Masuk untuk melanjutkan ke sistem presensi.', style: textTheme.bodyMedium, textAlign: TextAlign.center)]);
+  }
+  Widget _buildEmailField(BuildContext context) {
+    return TextFormField(controller: _emailController, keyboardType: TextInputType.emailAddress, textInputAction: TextInputAction.next, decoration: const InputDecoration(labelText: 'Email', prefixIcon: Icon(Icons.email_outlined)), validator: (value) { if (value == null || value.isEmpty) { return 'Email tidak boleh kosong'; } final emailRegex = RegExp(r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+"); if (!emailRegex.hasMatch(value)) { return 'Format email tidak valid'; } return null; });
   }
 }

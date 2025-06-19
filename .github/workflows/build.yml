@@ -1,4 +1,4 @@
-name: Build Flutter (Android APK & iOS Simulator)
+name: Build Flutter (Android APK)
 
 on:
   push:
@@ -7,33 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-ios-simulator:
-    runs-on: macos-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.32.4'
-          channel: 'stable'
-          cache: true
-      - name: Install dependencies
-        run: flutter pub get
-      - name: Build iOS Simulator
-        run: flutter build ios --simulator --no-codesign
-      - name: Compress Simulator App
-        run: |
-          cd build/ios/iphonesimulator
-          zip -r ../../../Runner.app.zip Runner.app
-      - name: Upload iOS Simulator Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: simulator-app
-          path: Runner.app.zip
-
   build-android-and-release:
-    needs: build-ios-simulator
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -67,30 +41,6 @@ jobs:
         run: flutter build apk --release --build-name=${{ steps.get_version.outputs.version_name }} --build-number=${{ github.run_number }}
       - name: Rename APK file
         run: mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/app-v${{ steps.get_version.outputs.version_name }}-${{ github.run_number }}.apk
-      - name: Download iOS Simulator Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: simulator-app
-
-      - name: Generate Changelog
-        id: changelog_generator
-        run: |
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          if [ -z "$LATEST_TAG" ]; then
-            echo "No previous tag found, including all commits."
-            LOG_RANGE="HEAD"
-          else
-            echo "Found previous tag: $LATEST_TAG"
-            LOG_RANGE="${LATEST_TAG}..HEAD"
-          fi
-          {
-            echo "changelog<<EOF"
-            echo "### What's Changed"
-            echo ""
-            git log $LOG_RANGE --pretty=format:'* %s (%h)'
-            echo ""
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
         if: github.ref == 'refs/heads/master'
@@ -98,8 +48,7 @@ jobs:
         with:
           tag_name: v${{ steps.get_version.outputs.version_name }}-${{ github.run_number }}
           name: Release v${{ steps.get_version.outputs.version_name }} (Build ${{ github.run_number }})
-          body: ${{ steps.changelog_generator.outputs.changelog }}
+          generate_release_notes: true
           prerelease: true
           files: |
             build/app/outputs/flutter-apk/app-v${{ steps.get_version.outputs.version_name }}-${{ github.run_number }}.apk
-            Runner.app.zip
