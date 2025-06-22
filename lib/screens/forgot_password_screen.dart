@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 
 import '../enums/view_state.dart';
 import '../view_models/forgot_password_view_model.dart';
+import '../models/background_shape.dart';
 
+import '../widgets/artistic_background.dart';
 import '../providers/theme_notifier.dart';
 import '../theme/custom_colors.dart';
 
@@ -78,6 +80,25 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> with Single
     Color appBarColor = isDark ? theme.colorScheme.surface : theme.colorScheme.primary;
     Color onAppBarColor = isDark ? theme.colorScheme.onSurface : theme.colorScheme.onPrimary;
 
+    final accent = theme.colorScheme.tertiary;
+    final primary = theme.colorScheme.primary;
+    final List<BackgroundShape> forgotPasswordPattern = [
+      BackgroundShape(
+        top: -50,
+        right: -120,
+        width: 250,
+        height: 250,
+        color: accent.withAlpha(isDark ? 40 : 60),
+      ),
+      BackgroundShape(
+        bottom: -100,
+        left: -100,
+        width: 300,
+        height: 300,
+        color: primary.withAlpha(isDark ? 40 : 60),
+      ),
+    ];
+
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
@@ -96,7 +117,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> with Single
       ),
       body: Stack(
         children: [
-          _buildArtisticBackground(context, isDark),
+          ArtisticBackground(shapes: forgotPasswordPattern),
           Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
@@ -167,10 +188,5 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> with Single
     final textTheme = Theme.of(context).textTheme;
     final successColor = Theme.of(context).extension<CustomColors>()?.success ?? Colors.green;
     return FadeTransition(key: const ValueKey('success_view'), opacity: _fadeAnimation, child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.stretch, children: [Icon(Icons.mark_email_read_outlined, size: 70, color: successColor), const SizedBox(height: 24), Text('Email Terkirim!', style: textTheme.headlineSmall, textAlign: TextAlign.center), const SizedBox(height: 12), Text('Silakan periksa kotak masuk email Anda untuk melanjutkan proses reset password.', style: textTheme.bodyMedium, textAlign: TextAlign.center)]));
-  }
-  Widget _buildArtisticBackground(BuildContext context, bool isDark) {
-    final accent = Theme.of(context).colorScheme.tertiary;
-    final primary = Theme.of(context).colorScheme.primary;
-    return Stack(children: [Positioned(top: -50, right: -120, child: Container(width: 250, height: 250, decoration: BoxDecoration(shape: BoxShape.circle, color: accent.withAlpha(isDark ? 40 : 60)))), Positioned(bottom: -100, left: -100, child: Container(width: 300, height: 300, decoration: BoxDecoration(shape: BoxShape.circle, color: primary.withAlpha(isDark ? 40 : 60))))]);
   }
 }

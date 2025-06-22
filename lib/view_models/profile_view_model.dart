@@ -22,7 +22,7 @@ class ProfileViewModel with ChangeNotifier {
       final userData = await UserStorage.getUser();
       _user = userData;
       _setState(ViewState.success);
-        } catch (e) {
+    } catch (e) {
       _errorMessage = 'Terjadi kesalahan: ${e.toString()}';
       _setState(ViewState.error);
     }
@@ -30,5 +30,7 @@ class ProfileViewModel with ChangeNotifier {
 
   Future<void> logout() async {
     await UserStorage.clearUser();
+    _user = null;
+    notifyListeners();
   }
 }

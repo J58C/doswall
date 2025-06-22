@@ -5,7 +5,9 @@ import 'package:provider/provider.dart';
 
 import '../enums/view_state.dart';
 import '../services/permission_service.dart';
+import '../models/background_shape.dart';
 
+import '../widgets/artistic_background.dart';
 import '../view_models/login_view_model.dart';
 import '../providers/theme_notifier.dart';
 
@@ -128,11 +130,30 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
+    final primary = theme.colorScheme.primary;
+    final secondary = theme.colorScheme.secondary;
+    final List<BackgroundShape> loginScreenPattern = [
+      BackgroundShape(
+        top: -100,
+        left: -100,
+        width: 300,
+        height: 300,
+        color: primary.withAlpha((255 * (isDark ? 0.2 : 0.3)).round()),
+      ),
+      BackgroundShape(
+        bottom: -150,
+        right: -150,
+        width: 400,
+        height: 400,
+        color: secondary.withAlpha((255 * (isDark ? 0.25 : 0.35)).round()),
+      ),
+    ];
+
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: Stack(
         children: [
-          _buildArtisticBackground(context, isDark),
+          ArtisticBackground(shapes: loginScreenPattern),
           Positioned(
             top: 40, right: 16,
             child: IconButton(
@@ -270,11 +291,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     );
   }
 
-  Widget _buildArtisticBackground(BuildContext context, bool isDark) {
-    final primary = Theme.of(context).colorScheme.primary;
-    final secondary = Theme.of(context).colorScheme.secondary;
-    return Stack(children: [ Positioned(top: -100, left: -100, child: Container(width: 300, height: 300, decoration: BoxDecoration(shape: BoxShape.circle, color: primary.withAlpha((255 * (isDark ? 0.2 : 0.3)).round())))), Positioned(bottom: -150, right: -150, child: Container(width: 400, height: 400, decoration: BoxDecoration(shape: BoxShape.circle, color: secondary.withAlpha((255 * (isDark ? 0.25 : 0.35)).round()))))]);
-  }
   Widget _buildHeader(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     return Column(children: [ Icon(Icons.school_outlined, size: 48, color: Theme.of(context).colorScheme.primary), const SizedBox(height: 16), Text('Selamat Datang', style: textTheme.headlineSmall, textAlign: TextAlign.center), const SizedBox(height: 4), Text('Masuk untuk melanjutkan ke sistem presensi.', style: textTheme.bodyMedium, textAlign: TextAlign.center)]);

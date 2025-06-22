@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 
 import '../enums/view_state.dart';
 import '../view_models/profile_view_model.dart';
+import '../models/background_shape.dart';
 
+import '../widgets/artistic_background.dart';
 import '../providers/theme_notifier.dart';
 import './login_screen.dart';
 
@@ -66,9 +68,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final theme = Theme.of(context);
     final themeNotifier = context.watch<ThemeNotifier>();
     final isDark = theme.brightness == Brightness.dark;
-
     Color appBarColor = isDark ? theme.colorScheme.surface : theme.colorScheme.primary;
     Color onAppBarColor = isDark ? theme.colorScheme.onSurface : theme.colorScheme.onPrimary;
+
+    final primary = theme.colorScheme.primary;
+    final secondary = theme.colorScheme.secondary;
+    final List<BackgroundShape> profileScreenPattern = [
+      BackgroundShape(
+        top: -120,
+        right: -180,
+        width: 350,
+        height: 350,
+        color: primary.withAlpha(isDark ? 30 : 50),
+      ),
+      BackgroundShape(
+        bottom: -150,
+        left: -100,
+        width: 320,
+        height: 320,
+        color: secondary.withAlpha(isDark ? 35 : 55),
+      ),
+    ];
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -87,7 +107,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       body: Stack(
         children: [
-          _buildArtisticBackground(context, isDark),
+          ArtisticBackground(shapes: profileScreenPattern),
           _buildBody(viewModel),
         ],
       ),
@@ -175,10 +195,5 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ],
       ),
     );
-  }
-  Widget _buildArtisticBackground(BuildContext context, bool isDark) {
-    final primary = Theme.of(context).colorScheme.primary;
-    final secondary = Theme.of(context).colorScheme.secondary;
-    return Stack(children: [ Positioned(top: -120, right: -180, child: Container(width: 350, height: 350, decoration: BoxDecoration(shape: BoxShape.circle, color: primary.withAlpha(isDark ? 30 : 50)))), Positioned(bottom: -150, left: -100, child: Container(width: 320, height: 320, decoration: BoxDecoration(shape: BoxShape.circle, color: secondary.withAlpha(isDark ? 35 : 55))))]);
   }
 }

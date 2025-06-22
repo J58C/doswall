@@ -18,6 +18,7 @@ import 'view_models/change_password_view_model.dart';
 import 'view_models/announcements_view_model.dart';
 import 'view_models/profile_view_model.dart';
 import 'view_models/splash_view_model.dart';
+import 'view_models/home_view_model.dart';
 
 import 'services/announcement_service.dart';
 import 'services/api_client.dart';
@@ -76,6 +77,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AnnouncementsViewModel(service: AnnouncementService())),
         ChangeNotifierProvider(create: (_) => ProfileViewModel()),
         ChangeNotifierProvider(create: (_) => SplashViewModel()),
+        ChangeNotifierProvider(create: (_) => HomeViewModel())
       ],
       child: Consumer<ThemeNotifier>(
         builder: (context, currentTheme, child) {

@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 
 import '../enums/view_state.dart';
 import '../view_models/change_password_view_model.dart';
+import '../models/background_shape.dart';
 
+import '../widgets/artistic_background.dart';
 import '../providers/theme_notifier.dart';
 import '../theme/custom_colors.dart';
 
@@ -87,6 +89,25 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> with Ticker
     Color appBarColor = isDark ? theme.colorScheme.surface : theme.colorScheme.primary;
     Color onAppBarColor = isDark ? theme.colorScheme.onSurface : theme.colorScheme.onPrimary;
 
+    final primary = theme.colorScheme.primary;
+    final tertiary = theme.colorScheme.tertiary;
+    final List<BackgroundShape> changePasswordPattern = [
+      BackgroundShape(
+        top: -80,
+        right: -150,
+        width: 300,
+        height: 300,
+        color: primary.withAlpha(isDark ? 30 : 50),
+      ),
+      BackgroundShape(
+        bottom: -120,
+        left: -80,
+        width: 280,
+        height: 280,
+        color: tertiary.withAlpha(isDark ? 35 : 55),
+      ),
+    ];
+
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
@@ -105,7 +126,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> with Ticker
       ),
       body: Stack(
         children: [
-          _buildArtisticBackground(context, isDark),
+          ArtisticBackground(shapes: changePasswordPattern),
           Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
@@ -198,10 +219,5 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> with Ticker
     final textTheme = Theme.of(context).textTheme;
     final successColor = Theme.of(context).extension<CustomColors>()?.success ?? Colors.green;
     return FadeTransition(key: const ValueKey('success_view'), opacity: _fadeAnimation, child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.stretch, children: [Icon(Icons.check_circle_outline, size: 70, color: successColor), const SizedBox(height: 24), Text('Password Berhasil Diubah!', style: textTheme.headlineSmall, textAlign: TextAlign.center), const SizedBox(height: 12), Text('Anda akan diarahkan kembali.', style: textTheme.bodyMedium, textAlign: TextAlign.center)]));
-  }
-  Widget _buildArtisticBackground(BuildContext context, bool isDark) {
-    final primary = Theme.of(context).colorScheme.primary;
-    final tertiary = Theme.of(context).colorScheme.tertiary;
-    return Stack(children: [Positioned(top: -80, right: -150, child: Container(width: 300, height: 300, decoration: BoxDecoration(shape: BoxShape.circle, color: primary.withAlpha(isDark ? 30 : 50)))), Positioned(bottom: -120, left: -80, child: Container(width: 280, height: 280, decoration: BoxDecoration(shape: BoxShape.circle, color: tertiary.withAlpha(isDark ? 35 : 55))))]);
   }
 }

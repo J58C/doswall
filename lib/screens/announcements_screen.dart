@@ -5,7 +5,9 @@ import 'package:provider/provider.dart';
 import '../enums/view_state.dart';
 import '../view_models/announcements_view_model.dart';
 import '../models/announcement_response.dart';
+import '../models/background_shape.dart';
 
+import '../widgets/artistic_background.dart';
 import '../theme/custom_colors.dart';
 import '../providers/theme_notifier.dart';
 
@@ -108,6 +110,24 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
     Color appBarColor = isDark ? theme.colorScheme.surface : theme.colorScheme.primary;
     Color onAppBarColor = isDark ? theme.colorScheme.onSurface : theme.colorScheme.onPrimary;
 
+    final tertiaryColor = theme.colorScheme.tertiary;
+    final List<BackgroundShape> announcementScreenPattern = [
+      BackgroundShape(
+        top: 20,
+        right: -80,
+        width: 200,
+        height: 200,
+        color: tertiaryColor.withAlpha(isDark ? 35 : 50),
+      ),
+      BackgroundShape(
+        bottom: 100,
+        left: -120,
+        width: 300,
+        height: 300,
+        color: tertiaryColor.withAlpha(isDark ? 25 : 40),
+      ),
+    ];
+
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
@@ -131,7 +151,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
       ),
       body: Stack(
         children: [
-          _buildArtisticBackground(context, isDark),
+          ArtisticBackground(shapes: announcementScreenPattern),
           RefreshIndicator(
             onRefresh: () => viewModel.fetchAnnouncements(),
             child: _buildBody(viewModel),
@@ -199,11 +219,6 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
             ])));
   }
 
-  Widget _buildArtisticBackground(BuildContext context, bool isDark) {
-    final primary = Theme.of(context).colorScheme.primary;
-    final secondary = Theme.of(context).colorScheme.secondary;
-    return Stack(children: [ Positioned(top: -120, left: -180, child: Container(width: 350, height: 350, decoration: BoxDecoration(shape: BoxShape.circle, color: primary.withAlpha(isDark ? 30 : 50)))), Positioned(bottom: -150, right: -100, child: Container(width: 320, height: 320, decoration: BoxDecoration(shape: BoxShape.circle, color: secondary.withAlpha(isDark ? 35 : 55))))]);
-  }
 }
 
 class _AnnouncementCard extends StatelessWidget {
