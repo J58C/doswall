@@ -31,6 +31,6 @@ class ProfileViewModel with ChangeNotifier {
   Future<void> logout() async {
     await UserStorage.clearUser();
     _user = null;
-    notifyListeners();
+    _setState(ViewState.loading);
   }
 }

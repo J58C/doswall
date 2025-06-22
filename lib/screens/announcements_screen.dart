@@ -8,6 +8,7 @@ import '../models/announcement_response.dart';
 import '../models/background_shape.dart';
 
 import '../widgets/artistic_background.dart';
+import '../widgets/app_floating_action_button.dart';
 import '../theme/custom_colors.dart';
 import '../providers/theme_notifier.dart';
 
@@ -144,10 +145,8 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _openAnnouncementForm,
-        icon: const Icon(Icons.add_comment_outlined),
-        label: const Text('Baru'),
+      floatingActionButton: AppFloatingActionButton.add(
+        onAddAction: () => _openAnnouncementForm(),
       ),
       body: Stack(
         children: [
@@ -218,7 +217,6 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                   style: Theme.of(context).textTheme.bodyMedium, textAlign: TextAlign.center)
             ])));
   }
-
 }
 
 class _AnnouncementCard extends StatelessWidget {

@@ -10,6 +10,7 @@ import '../widgets/artistic_background.dart';
 import '../widgets/header_card.dart';
 import '../widgets/presence_details_card.dart';
 import '../widgets/notes_card.dart';
+import '../widgets/app_floating_action_button.dart';
 import '../providers/theme_notifier.dart';
 import '../theme/custom_colors.dart';
 
@@ -50,8 +51,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           backgroundColor: theme.colorScheme.error,
         ),
       );
-    }
-    else if (_viewModel.successMessage != null) {
+    } else if (_viewModel.successMessage != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(_viewModel.successMessage!),
@@ -60,14 +60,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       );
     }
     _viewModel.clearMessages();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    super.didChangeAppLifecycleState(state);
-    if (state == AppLifecycleState.resumed) {
-      _viewModel.loadAndSyncOnStartup();
-    }
   }
 
   @override
@@ -222,69 +214,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ],
         ),
         floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-        floatingActionButton: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 350),
-          transitionBuilder: (Widget child, Animation<double> animation) {
-            return SlideTransition(
-              position: Tween<Offset>(begin: const Offset(0.0, 2.0), end: Offset.zero).animate(animation),
-              child: FadeTransition(opacity: animation, child: child),
-            );
-          },
-          child: (viewModel.isActive || viewModel.isNotesExpanded)
-              ? Stack(
-            key: const ValueKey('active_fabs'),
-            fit: StackFit.expand,
-            children: [
-              Positioned(
-                right: 16,
-                bottom: 0,
-                child: FloatingActionButton(
-                  heroTag: 'fab_announcements',
-                  onPressed: () => Navigator.pushNamed(context, '/announcements'),
-                  tooltip: 'Pengumuman',
-                  child: const Icon(Icons.campaign_outlined),
-                ),
-              ),
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: FloatingActionButton.extended(
-                  heroTag: 'fab_save',
-                  onPressed: viewModel.isFetchingLocation || viewModel.isSaving ? null : () => _saveData(viewModel),
-                  label: Text(viewModel.isSaving ? 'Menyimpan...' : 'Simpan'),
-                  icon: viewModel.isFetchingLocation || viewModel.isSaving
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Icon(Icons.save_alt_outlined),
-                ),
-              ),
-              if (isAdmin)
-                Positioned(
-                  left: 16,
-                  bottom: 0,
-                  child: FloatingActionButton(
-                    heroTag: 'admin-fab',
-                    onPressed: viewModel.handleAdminAction,
-                    tooltip: 'Admin Area',
-                    backgroundColor: theme.colorScheme.tertiaryContainer,
-                    foregroundColor: theme.colorScheme.onTertiaryContainer,
-                    child: const Icon(Icons.admin_panel_settings_outlined),
-                  ),
-                ),
-            ],
-          )
-              : (isAdmin
-              ? Align(
-            key: const ValueKey('inactive_admin_fab'),
-            alignment: Alignment.bottomCenter,
-            child: FloatingActionButton.extended(
-              heroTag: 'admin-fab-inactive',
-              onPressed: viewModel.handleAdminAction,
-              label: const Text('Admin Panel'),
-              icon: const Icon(Icons.admin_panel_settings_outlined),
-              backgroundColor: theme.colorScheme.tertiaryContainer,
-              foregroundColor: theme.colorScheme.onTertiaryContainer,
-            ),
-          )
-              : const SizedBox.shrink(key: ValueKey('inactive_empty'))),
+        floatingActionButton: AppFloatingActionButton.home(
+          viewModel: viewModel,
+          isAdmin: isAdmin,
+          onAnnouncementsAction: () => Navigator.pushNamed(context, '/announcements'),
+          onSaveData: () => _saveData(viewModel),
+          onAdminAction: viewModel.handleAdminAction,
         ),
       ),
     );
