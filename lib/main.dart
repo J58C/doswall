@@ -1,8 +1,11 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_background_service/flutter_background_service.dart';
-import 'package:provider/provider.dart';
-import 'package:intl/date_symbol_data_local.dart';
 import 'dart:async';
+import 'dart:ui';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+
+import 'services/announcement_service.dart';
 
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
@@ -20,18 +23,49 @@ import 'view_models/profile_view_model.dart';
 import 'view_models/splash_view_model.dart';
 import 'view_models/home_view_model.dart';
 
-import 'services/announcement_service.dart';
-import 'services/api_client.dart';
 import 'providers/theme_notifier.dart';
 import 'theme/app_theme.dart';
 
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+FlutterLocalNotificationsPlugin();
+
 @pragma('vm:entry-point')
-void onStart(ServiceInstance service) {
-  service.on('stopService').listen((event) {
-    service.stopSelf();
+void onStart(ServiceInstance service) async {
+  DartPluginRegistrant.ensureInitialized();
+
+  const AndroidNotificationChannel channel = AndroidNotificationChannel(
+    'doswall_service_channel',
+    'Layanan Presensi',
+    description: 'Layanan presensi sedang aktif berjalan.',
+    importance: Importance.max,
+  );
+
+  await flutterLocalNotificationsPlugin
+      .resolvePlatformSpecificImplementation<
+      AndroidFlutterLocalNotificationsPlugin>()
+      ?.createNotificationChannel(channel);
+
+  const AndroidNotificationDetails androidNotificationDetails =
+  AndroidNotificationDetails(
+    'doswall_service_channel',
+    'Layanan Presensi',
+    channelDescription: 'Layanan presensi sedang aktif berjalan.',
+    ongoing: true,
+    priority: Priority.high,
+  );
+
+  await flutterLocalNotificationsPlugin.show(
+    888,
+    'Presensi Aktif',
+    'Layanan sedang berjalan di latar belakang.',
+    const NotificationDetails(android: androidNotificationDetails),
+  );
+
+  service.on('stop').listen((event) {
+    flutterLocalNotificationsPlugin.cancel(888);
   });
-  Timer.periodic(const Duration(minutes: 1), (timer) {
-    debugPrint('Service Presensi Aktif...');
+  service.on('stop_service').listen((event) {
+    service.stopSelf();
   });
 }
 
@@ -42,30 +76,35 @@ Future<void> initializeService() async {
       onStart: onStart,
       isForegroundMode: true,
       autoStart: false,
-      notificationChannelId: 'doswall_service',
-      initialNotificationTitle: 'Doswall',
-      initialNotificationContent: 'Layanan presensi sedang aktif.',
-      foregroundServiceNotificationId: 888,
     ),
     iosConfiguration: IosConfiguration(
       autoStart: false,
       onForeground: onStart,
-      onBackground: (ServiceInstance service) async => true,
     ),
   );
 }
 
-Future<void> main() async {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await initializeDateFormatting('id_ID', null);
+  const AndroidInitializationSettings initializationSettingsAndroid =
+  AndroidInitializationSettings('@mipmap/ic_launcher');
+
+  const InitializationSettings initializationSettings = InitializationSettings(
+    android: initializationSettingsAndroid,
+  );
+
+  await flutterLocalNotificationsPlugin.initialize(initializationSettings);
   await initializeService();
+
   final themeNotifier = await ThemeNotifier.create();
   runApp(MyApp(themeNotifier: themeNotifier));
 }
 
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 class MyApp extends StatelessWidget {
   final ThemeNotifier themeNotifier;
   const MyApp({super.key, required this.themeNotifier});
+
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
@@ -77,7 +116,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AnnouncementsViewModel(service: AnnouncementService())),
         ChangeNotifierProvider(create: (_) => ProfileViewModel()),
         ChangeNotifierProvider(create: (_) => SplashViewModel()),
-        ChangeNotifierProvider(create: (_) => HomeViewModel())
+        ChangeNotifierProvider(create: (_) => HomeViewModel()),
       ],
       child: Consumer<ThemeNotifier>(
         builder: (context, currentTheme, child) {

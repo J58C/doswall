@@ -14,6 +14,10 @@
     <string>Aplikasi ini memerlukan akses lokasi di latar belakang agar layanan presensi tetap berjalan akurat bahkan saat aplikasi ditutup.</string>
     <key>NSLocationAlwaysUsageDescription</key>
     <string>Aplikasi ini memerlukan akses lokasi di latar belakang agar layanan presensi tetap berjalan akurat bahkan saat aplikasi ditutup.</string>
+    <key>NSUserNotificationAlertUsageDescription</key>
+    <string>Izinkan aplikasi mengirimkan notifikasi.</string>
+    <key>NSUserNotificationSoundUsageDescription</key>
+    <string>Izinkan aplikasi memutar suara notifikasi.</string>
 
     <key>CFBundleDevelopmentRegion</key>
     <string>$(DEVELOPMENT_LANGUAGE)</string>

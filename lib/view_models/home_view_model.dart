@@ -42,6 +42,16 @@ class HomeViewModel extends ChangeNotifier {
 
   HomeViewModel() {
     loadAndSyncOnStartup();
+    _backgroundService.on('stopped').listen((_) {
+      if (_isActive) {
+        debugPrint("Service berhenti di hentikan");
+        _isActive = false;
+        _locationOptions = [];
+        _selectedLocation = null;
+        _currentLatLng = null;
+        notifyListeners();
+      }
+    });
   }
 
   void clearAllStateForLogout() {
@@ -115,6 +125,8 @@ class HomeViewModel extends ChangeNotifier {
 
   Future<void> toggleActive(bool value) async {
     if (value) {
+      await _backgroundService.startService();
+
       _isActive = true;
       notifyListeners();
       await fetchLocationData(isNewActivation: true);
@@ -145,7 +157,7 @@ class HomeViewModel extends ChangeNotifier {
     _user = updatedUser;
 
     if (await _backgroundService.isRunning()) {
-      _backgroundService.invoke('stopService');
+      _backgroundService.invoke('stop_service');
     }
 
     notifyListeners();

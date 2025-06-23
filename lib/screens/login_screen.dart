@@ -39,19 +39,21 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     _passwordController.addListener(() => context.read<LoginViewModel>().resetState());
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkAndRequestLocationPermission();
+      _checkAndRequestPermissions();
     });
   }
 
-  Future<void> _checkAndRequestLocationPermission() async {
-    final result = await LocationPermissionHandler.handle();
-    if (result == LocationPermissionResult.granted || !mounted) return;
-
-    if (result == LocationPermissionResult.deniedForever) {
-      _showSettingsDialog();
-    } else {
-      _showPermissionInfoDialog();
+  Future<void> _checkAndRequestPermissions() async {
+    final locationResult = await LocationPermissionHandler.handle();
+    if (locationResult != LocationPermissionResult.granted) {
+      if (!mounted) return;
+      if (locationResult == LocationPermissionResult.deniedForever) {
+        _showSettingsDialog();
+      } else {
+        _showPermissionInfoDialog();
+      }
     }
+    await NotificationPermissionHandler.handle();
   }
 
   void _showPermissionInfoDialog() {
@@ -70,7 +72,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             child: const Text('Coba Lagi'),
             onPressed: () {
               Navigator.of(context).pop();
-              _checkAndRequestLocationPermission();
+              _checkAndRequestPermissions();
             },
           ),
         ],

@@ -1,4 +1,5 @@
 import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 enum LocationPermissionResult {
   granted,
@@ -38,6 +39,45 @@ class LocationPermissionHandler {
         return 'Izin lokasi ditolak permanen. Mohon aktifkan dari pengaturan aplikasi.';
       default:
         return 'Izin lokasi diberikan.';
+    }
+  }
+}
+
+enum NotificationPermissionResult {
+  granted,
+  denied,
+  deniedForever,
+}
+
+class NotificationPermissionHandler {
+  static Future<NotificationPermissionResult> handle() async {
+    final status = await Permission.notification.status;
+    if (status.isGranted) {
+      return NotificationPermissionResult.granted;
+    }
+    if (status.isPermanentlyDenied) {
+      return NotificationPermissionResult.deniedForever;
+    }
+
+    final result = await Permission.notification.request();
+    if (result.isGranted) {
+      return NotificationPermissionResult.granted;
+    }
+    if (result.isPermanentlyDenied) {
+      return NotificationPermissionResult.deniedForever;
+    }
+
+    return NotificationPermissionResult.denied;
+  }
+
+  static String getErrorMessage(NotificationPermissionResult result) {
+    switch (result) {
+      case NotificationPermissionResult.denied:
+        return 'Izin notifikasi ditolak.';
+      case NotificationPermissionResult.deniedForever:
+        return 'Izin notifikasi ditolak permanen. Mohon aktifkan dari pengaturan aplikasi.';
+      default:
+        return 'Izin notifikasi diberikan.';
     }
   }
 }

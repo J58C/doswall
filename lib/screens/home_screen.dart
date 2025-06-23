@@ -95,10 +95,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _handleToggle(bool value, HomeViewModel viewModel) async {
     if (value) {
-      final permissionResult = await LocationPermissionHandler.handle();
-      if (permissionResult != LocationPermissionResult.granted) {
+      final notifPermissionResult = await NotificationPermissionHandler.handle();
+      if (notifPermissionResult != NotificationPermissionResult.granted) {
         if (mounted) {
-          final errorMessage = LocationPermissionHandler.getErrorMessage(permissionResult);
+          final errorMessage = NotificationPermissionHandler.getErrorMessage(notifPermissionResult);
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMessage)));
+        }
+        return;
+      }
+      final locationPermissionResult = await LocationPermissionHandler.handle();
+      if (locationPermissionResult != LocationPermissionResult.granted) {
+        if (mounted) {
+          final errorMessage = LocationPermissionHandler.getErrorMessage(locationPermissionResult);
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMessage)));
         }
         return;
@@ -107,7 +115,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     } else {
       _showConfirmationDialog(
         title: 'Nonaktifkan Presensi?',
-        content: 'Layanan di latar belakang akan dihentikan dan status Anda menjadi "Unavailable". Lanjutkan?',
+        content:
+        'Layanan di latar belakang akan dihentikan dan status Anda menjadi "Unavailable". Lanjutkan?',
         onConfirm: () => viewModel.deactivatePresence(),
       );
     }
