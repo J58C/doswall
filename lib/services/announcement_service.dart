@@ -18,6 +18,7 @@ class AnnouncementService {
     final requestBody = {
       'appkey': ApiConfig.appKey,
       '_id': userId,
+      'token': userData['token'],
     };
 
     try {
